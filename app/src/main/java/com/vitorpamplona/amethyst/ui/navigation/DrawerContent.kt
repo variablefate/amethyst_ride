@@ -547,7 +547,11 @@ fun ListContent(
     }
 
     if (wantsToEditRelays) {
-        NewRelayListView({ wantsToEditRelays = false }, accountViewModel, nav = nav)
+        NewRelayListView(
+            onClose = { wantsToEditRelays = false },
+            accountViewModel = accountViewModel,
+            nav = nav,
+        )
     }
     if (backupDialogOpen) {
         AccountBackupDialog(accountViewModel, onClose = { backupDialogOpen = false })

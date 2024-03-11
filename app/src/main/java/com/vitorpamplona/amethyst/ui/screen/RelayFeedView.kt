@@ -137,7 +137,7 @@ fun RelayFeedView(
     var wantsToAddRelay by remember { mutableStateOf("") }
 
     if (wantsToAddRelay.isNotEmpty()) {
-        NewRelayListView({ wantsToAddRelay = "" }, accountViewModel, wantsToAddRelay, nav = nav)
+        NewRelayListView(wantsToAddRelay, { wantsToAddRelay = "" }, accountViewModel, nav = nav)
     }
 
     var refreshing by remember { mutableStateOf(false) }

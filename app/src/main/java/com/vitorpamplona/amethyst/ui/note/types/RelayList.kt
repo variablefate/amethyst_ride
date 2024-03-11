@@ -167,7 +167,7 @@ private fun RelayOptionsAction(
     var wantsToAddRelay by remember { mutableStateOf("") }
 
     if (wantsToAddRelay.isNotEmpty()) {
-        NewRelayListView({ wantsToAddRelay = "" }, accountViewModel, wantsToAddRelay, nav = nav)
+        NewRelayListView(wantsToAddRelay, { wantsToAddRelay = "" }, accountViewModel, nav = nav)
     }
 
     if (isCurrentlyOnTheUsersList) {

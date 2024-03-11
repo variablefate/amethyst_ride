@@ -44,7 +44,7 @@ class NewRelayListViewModel : ViewModel() {
 
     fun load(account: Account) {
         this.account = account
-        clear()
+        reset()
         loadRelayDocuments()
     }
 
@@ -52,7 +52,7 @@ class NewRelayListViewModel : ViewModel() {
         relays.let {
             viewModelScope.launch(Dispatchers.IO) {
                 account.saveRelayList(it.value)
-                clear()
+                reset()
             }
         }
     }
@@ -71,10 +71,10 @@ class NewRelayListViewModel : ViewModel() {
         }
     }
 
-    fun clear() {
-        _relays.update {
-            var relayFile = account.userProfile().latestContactList?.relays()
+    fun reset() {
+        var relayFile = account.userProfile().latestContactList?.relays()
 
+        val currentKind3List =
             if (relayFile != null) {
                 // Ugly, but forces nostr.band as the only search-supporting relay today.
                 // TODO: Remove when search becomes more available.
@@ -159,6 +159,9 @@ class NewRelayListViewModel : ViewModel() {
                     .sortedBy { it.downloadCountInBytes }
                     .reversed()
             }
+
+        _relays.update {
+            currentKind3List
         }
     }
 

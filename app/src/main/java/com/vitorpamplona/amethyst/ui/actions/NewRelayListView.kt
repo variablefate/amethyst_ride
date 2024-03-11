@@ -33,7 +33,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Download
@@ -50,7 +52,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -68,6 +69,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -81,11 +84,14 @@ import com.vitorpamplona.amethyst.model.RelayBriefInfoCache
 import com.vitorpamplona.amethyst.model.RelaySetupInfo
 import com.vitorpamplona.amethyst.service.Nip11CachedRetriever
 import com.vitorpamplona.amethyst.service.Nip11Retriever
+import com.vitorpamplona.amethyst.service.relays.COMMON_FEED_TYPES
 import com.vitorpamplona.amethyst.service.relays.Constants
 import com.vitorpamplona.amethyst.service.relays.Constants.defaultRelays
 import com.vitorpamplona.amethyst.service.relays.FeedType
+import com.vitorpamplona.amethyst.ui.components.mockAccountViewModel
 import com.vitorpamplona.amethyst.ui.note.RenderRelayIcon
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.MyTextField
 import com.vitorpamplona.amethyst.ui.theme.ButtonBorder
 import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.FeedPadding
@@ -93,31 +99,44 @@ import com.vitorpamplona.amethyst.ui.theme.Font14SP
 import com.vitorpamplona.amethyst.ui.theme.HalfHorzPadding
 import com.vitorpamplona.amethyst.ui.theme.HalfStartPadding
 import com.vitorpamplona.amethyst.ui.theme.ReactionRowHeightChat
+import com.vitorpamplona.amethyst.ui.theme.Size20Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size30Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size35dp
+import com.vitorpamplona.amethyst.ui.theme.Size5dp
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
-import com.vitorpamplona.amethyst.ui.theme.StdVertSpacer
+import com.vitorpamplona.amethyst.ui.theme.ThemeComparisonColumn
+import com.vitorpamplona.amethyst.ui.theme.ThemeComparisonRow
 import com.vitorpamplona.amethyst.ui.theme.WarningColor
 import com.vitorpamplona.amethyst.ui.theme.allGoodColor
+import com.vitorpamplona.amethyst.ui.theme.grayText
 import com.vitorpamplona.amethyst.ui.theme.largeRelayIconModifier
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.amethyst.ui.theme.warningColor
 import kotlinx.coroutines.launch
 import java.lang.Math.round
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewRelayListView(
+    relayToAdd: String = "",
     onClose: () -> Unit,
     accountViewModel: AccountViewModel,
-    relayToAdd: String = "",
     nav: (String) -> Unit,
 ) {
     val postViewModel: NewRelayListViewModel = viewModel()
-    val feedState by postViewModel.relays.collectAsStateWithLifecycle()
-
     LaunchedEffect(Unit) { postViewModel.load(accountViewModel.account) }
 
+    NewRelayListDialog(postViewModel, relayToAdd, onClose, accountViewModel, nav)
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun NewRelayListDialog(
+    postViewModel: NewRelayListViewModel,
+    relayToAdd: String = "",
+    onClose: () -> Unit,
+    accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
+) {
     Dialog(
         onDismissRequest = onClose,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -156,7 +175,7 @@ fun NewRelayListView(
                         Spacer(modifier = StdHorzSpacer)
                         CloseButton(
                             onPress = {
-                                postViewModel.clear()
+                                postViewModel.reset()
                                 onClose()
                             },
                         )
@@ -179,33 +198,339 @@ fun NewRelayListView(
                 verticalArrangement = Arrangement.SpaceAround,
             ) {
                 Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    LazyColumn(
-                        contentPadding = FeedPadding,
-                    ) {
-                        itemsIndexed(feedState, key = { _, item -> item.url }) { index, item ->
-                            ServerConfig(
-                                item,
-                                onToggleDownload = { postViewModel.toggleDownload(it) },
-                                onToggleUpload = { postViewModel.toggleUpload(it) },
-                                onToggleFollows = { postViewModel.toggleFollows(it) },
-                                onTogglePrivateDMs = { postViewModel.toggleMessages(it) },
-                                onTogglePublicChats = { postViewModel.togglePublicChats(it) },
-                                onToggleGlobal = { postViewModel.toggleGlobal(it) },
-                                onToggleSearch = { postViewModel.toggleSearch(it) },
-                                onDelete = { postViewModel.deleteRelay(it) },
-                                accountViewModel = accountViewModel,
-                            ) {
-                                onClose()
-                                nav(it)
-                            }
-                        }
-                    }
+                    RelayFeed(postViewModel, relayToAdd, onClose, accountViewModel, nav)
                 }
-
-                Spacer(modifier = StdVertSpacer)
-
-                EditableServerConfig(relayToAdd) { postViewModel.addRelay(it) }
             }
+        }
+    }
+}
+
+@Preview(device = "spec:width=2160px,height=2340px,dpi=440")
+@Composable
+private fun RelayFeedPreview() {
+    val accountViewModel = mockAccountViewModel()
+    val nav: () -> Unit = {}
+
+    val postViewModel = NewRelayListViewModel()
+    postViewModel.load(accountViewModel.account)
+
+    ThemeComparisonRow {
+        RelayFeed(postViewModel, onClose = { }, accountViewModel = accountViewModel) {}
+    }
+}
+
+@Composable
+private fun RelayFeed(
+    postViewModel: NewRelayListViewModel,
+    relayToAdd: String = "",
+    onClose: () -> Unit,
+    accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
+) {
+    val feedState by postViewModel.relays.collectAsStateWithLifecycle()
+    LazyColumn(
+        contentPadding = FeedPadding,
+    ) {
+        item {
+            SettingsCategory("Public Home Relays", "Others can use these relays to find your public content")
+        }
+
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "vitor.nostr1.com",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "nostr.wine",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+
+        item {
+            SettingsCategory("Public Notification Relays", "Others can send content that mention you to these relays")
+        }
+
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "vitor.nostr1.com",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+
+        item {
+            SettingsCategory("Private Inbox", "Others can send private content to you via these relays. Relays that accept any message from anybody but authenticate users before downloading content are recommended")
+        }
+
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "inbox.nostr.wine",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+
+        item {
+            SettingsCategory("Local Cache", "Use these relays first and automatically re-publish all events to them")
+        }
+
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "ws:localhost:4869",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+
+        item {
+            SettingsCategory("Search", "Search will use these relays. It requires NIP-50 compliance")
+        }
+
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "relay.noswhere.com",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "nostr.wine",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+        item {
+            val relayInfoDialog =
+                RelaySetupInfo(
+                    "relay.nostr.band",
+                    true,
+                    true,
+                    feedTypes = COMMON_FEED_TYPES,
+                )
+
+            PrepareRelayInfoDialog(
+                item = relayInfoDialog,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerPlainClickableLine(
+                    item = relayInfoDialog,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+
+        item {
+            SettingsCategory("General Relays", "Amethyst uses these relays to download posts for you.")
+        }
+
+        itemsIndexed(feedState, key = { _, item -> item.url }) { index, item ->
+            PrepareRelayInfoDialog(
+                item = item,
+                accountViewModel = accountViewModel,
+                nav = {
+                    onClose()
+                    nav(it)
+                },
+            ) { onOpenDialog ->
+                ServerConfigClickableLine(
+                    item = item,
+                    loadProfilePicture = remember { accountViewModel.settings.showProfilePictures.value },
+                    onToggleDownload = { postViewModel.toggleDownload(it) },
+                    onToggleUpload = { postViewModel.toggleUpload(it) },
+                    onToggleFollows = { postViewModel.toggleFollows(it) },
+                    onTogglePrivateDMs = { postViewModel.toggleMessages(it) },
+                    onTogglePublicChats = { postViewModel.togglePublicChats(it) },
+                    onToggleGlobal = { postViewModel.toggleGlobal(it) },
+                    onToggleSearch = { postViewModel.toggleSearch(it) },
+                    onDelete = { postViewModel.deleteRelay(it) },
+                    onClick = onOpenDialog,
+                )
+            }
+        }
+
+        item {
+            EditableServerAdd(relayToAdd) { postViewModel.addRelay(it) }
+        }
+    }
+}
+
+@Composable
+fun SettingsCategory(
+    title: String,
+    description: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier.padding(top = 24.dp, bottom = 8.dp),
+    ) {
+        Text(
+            text = title,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+        )
+        if (description != null) {
+            Text(
+                description,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.grayText,
+            )
         }
     }
 }
@@ -279,45 +604,40 @@ fun ServerConfigHeader() {
 @Preview
 @Composable
 fun ServerConfigPreview() {
-    ServerConfigClickableLine(
-        loadProfilePicture = true,
-        item =
-            RelaySetupInfo(
-                url = "nostr.mom",
-                read = true,
-                write = true,
-                errorCount = 23,
-                downloadCountInBytes = 10000,
-                uploadCountInBytes = 10000000,
-                spamCount = 10,
-                feedTypes = Constants.activeTypesGlobalChats,
-                paidRelay = true,
-            ),
-        onDelete = {},
-        onToggleDownload = {},
-        onToggleUpload = {},
-        onToggleFollows = {},
-        onTogglePrivateDMs = {},
-        onTogglePublicChats = {},
-        onToggleGlobal = {},
-        onToggleSearch = {},
-        onClick = {},
-    )
+    ThemeComparisonColumn {
+        ServerConfigClickableLine(
+            loadProfilePicture = true,
+            item =
+                RelaySetupInfo(
+                    url = "nostr.mom",
+                    read = true,
+                    write = true,
+                    errorCount = 23,
+                    downloadCountInBytes = 10000,
+                    uploadCountInBytes = 10000000,
+                    spamCount = 10,
+                    feedTypes = Constants.activeTypesGlobalChats,
+                    paidRelay = true,
+                ),
+            onDelete = {},
+            onToggleDownload = {},
+            onToggleUpload = {},
+            onToggleFollows = {},
+            onTogglePrivateDMs = {},
+            onTogglePublicChats = {},
+            onToggleGlobal = {},
+            onToggleSearch = {},
+            onClick = {},
+        )
+    }
 }
 
 @Composable
-fun ServerConfig(
+fun PrepareRelayInfoDialog(
     item: RelaySetupInfo,
-    onToggleDownload: (RelaySetupInfo) -> Unit,
-    onToggleUpload: (RelaySetupInfo) -> Unit,
-    onToggleFollows: (RelaySetupInfo) -> Unit,
-    onTogglePrivateDMs: (RelaySetupInfo) -> Unit,
-    onTogglePublicChats: (RelaySetupInfo) -> Unit,
-    onToggleGlobal: (RelaySetupInfo) -> Unit,
-    onToggleSearch: (RelaySetupInfo) -> Unit,
-    onDelete: (RelaySetupInfo) -> Unit,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
+    inner: @Composable (onOpenDialogFor: () -> Unit) -> Unit,
 ) {
     var relayInfo: RelayInfoDialog? by remember { mutableStateOf(null) }
     val context = LocalContext.current
@@ -332,63 +652,46 @@ fun ServerConfig(
         )
     }
 
-    val automaticallyShowProfilePicture =
-        remember {
-            accountViewModel.settings.showProfilePictures.value
-        }
+    inner {
+        accountViewModel.retrieveRelayDocument(
+            item.url,
+            onInfo = { relayInfo = RelayInfoDialog(RelayBriefInfoCache.RelayBriefInfo(item.url), it) },
+            onError = { url, errorCode, exceptionMessage ->
+                val msg =
+                    when (errorCode) {
+                        Nip11Retriever.ErrorCode.FAIL_TO_ASSEMBLE_URL ->
+                            context.getString(
+                                R.string.relay_information_document_error_assemble_url,
+                                url,
+                                exceptionMessage,
+                            )
+                        Nip11Retriever.ErrorCode.FAIL_TO_REACH_SERVER ->
+                            context.getString(
+                                R.string.relay_information_document_error_assemble_url,
+                                url,
+                                exceptionMessage,
+                            )
+                        Nip11Retriever.ErrorCode.FAIL_TO_PARSE_RESULT ->
+                            context.getString(
+                                R.string.relay_information_document_error_assemble_url,
+                                url,
+                                exceptionMessage,
+                            )
+                        Nip11Retriever.ErrorCode.FAIL_WITH_HTTP_STATUS ->
+                            context.getString(
+                                R.string.relay_information_document_error_assemble_url,
+                                url,
+                                exceptionMessage,
+                            )
+                    }
 
-    ServerConfigClickableLine(
-        item = item,
-        loadProfilePicture = automaticallyShowProfilePicture,
-        onToggleDownload = onToggleDownload,
-        onToggleUpload = onToggleUpload,
-        onToggleFollows = onToggleFollows,
-        onTogglePrivateDMs = onTogglePrivateDMs,
-        onTogglePublicChats = onTogglePublicChats,
-        onToggleGlobal = onToggleGlobal,
-        onToggleSearch = onToggleSearch,
-        onDelete = onDelete,
-        onClick = {
-            accountViewModel.retrieveRelayDocument(
-                item.url,
-                onInfo = { relayInfo = RelayInfoDialog(RelayBriefInfoCache.RelayBriefInfo(item.url), it) },
-                onError = { url, errorCode, exceptionMessage ->
-                    val msg =
-                        when (errorCode) {
-                            Nip11Retriever.ErrorCode.FAIL_TO_ASSEMBLE_URL ->
-                                context.getString(
-                                    R.string.relay_information_document_error_assemble_url,
-                                    url,
-                                    exceptionMessage,
-                                )
-                            Nip11Retriever.ErrorCode.FAIL_TO_REACH_SERVER ->
-                                context.getString(
-                                    R.string.relay_information_document_error_assemble_url,
-                                    url,
-                                    exceptionMessage,
-                                )
-                            Nip11Retriever.ErrorCode.FAIL_TO_PARSE_RESULT ->
-                                context.getString(
-                                    R.string.relay_information_document_error_assemble_url,
-                                    url,
-                                    exceptionMessage,
-                                )
-                            Nip11Retriever.ErrorCode.FAIL_WITH_HTTP_STATUS ->
-                                context.getString(
-                                    R.string.relay_information_document_error_assemble_url,
-                                    url,
-                                    exceptionMessage,
-                                )
-                        }
-
-                    accountViewModel.toast(
-                        context.getString(R.string.unable_to_download_relay_document),
-                        msg,
-                    )
-                },
-            )
-        },
-    )
+                accountViewModel.toast(
+                    context.getString(R.string.unable_to_download_relay_document),
+                    msg,
+                )
+            },
+        )
+    }
 }
 
 @Composable
@@ -462,6 +765,55 @@ fun ServerConfigClickableLine(
 }
 
 @Composable
+fun ServerPlainClickableLine(
+    item: RelaySetupInfo,
+    loadProfilePicture: Boolean,
+    onDelete: (RelaySetupInfo) -> Unit,
+    onClick: () -> Unit,
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(vertical = 5.dp),
+        ) {
+            Column(Modifier.clickable(onClick = onClick)) {
+                val iconUrlFromRelayInfoDoc =
+                    remember(item) {
+                        Nip11CachedRetriever.getFromCache(item.url)?.icon
+                    }
+
+                RenderRelayIcon(
+                    item.briefInfo.displayUrl,
+                    iconUrlFromRelayInfoDoc ?: item.briefInfo.favIcon,
+                    loadProfilePicture,
+                    MaterialTheme.colorScheme.largeRelayIconModifier,
+                )
+            }
+
+            Spacer(modifier = HalfHorzPadding)
+
+            Column(Modifier.weight(1f)) {
+                FirstLine(item, onClick, onDelete, ReactionRowHeightChat.fillMaxWidth())
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = ReactionRowHeightChat.fillMaxWidth(),
+                ) {
+                    RenderStatusRow(
+                        item = item,
+                        onToggleDownload = { },
+                        onToggleUpload = { },
+                        modifier = HalfStartPadding.weight(1f),
+                    )
+                }
+            }
+        }
+
+        HorizontalDivider(thickness = DividerThickness)
+    }
+}
+
+@Composable
 @OptIn(ExperimentalFoundationApi::class)
 private fun RenderStatusRow(
     item: RelaySetupInfo,
@@ -476,16 +828,18 @@ private fun RenderStatusRow(
         imageVector = Icons.Default.Download,
         contentDescription = stringResource(R.string.read_from_relay),
         modifier =
-            Modifier.size(15.dp)
+            Modifier
+                .size(15.dp)
                 .combinedClickable(
                     onClick = { onToggleDownload(item) },
                     onLongClick = {
                         scope.launch {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.read_from_relay),
-                                Toast.LENGTH_SHORT,
-                            )
+                            Toast
+                                .makeText(
+                                    context,
+                                    context.getString(R.string.read_from_relay),
+                                    Toast.LENGTH_SHORT,
+                                )
                                 .show()
                         }
                     },
@@ -512,16 +866,18 @@ private fun RenderStatusRow(
         imageVector = Icons.Default.Upload,
         stringResource(R.string.write_to_relay),
         modifier =
-            Modifier.size(15.dp)
+            Modifier
+                .size(15.dp)
                 .combinedClickable(
                     onClick = { onToggleUpload(item) },
                     onLongClick = {
                         scope.launch {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.write_to_relay),
-                                Toast.LENGTH_SHORT,
-                            )
+                            Toast
+                                .makeText(
+                                    context,
+                                    context.getString(R.string.write_to_relay),
+                                    Toast.LENGTH_SHORT,
+                                )
                                 .show()
                         }
                     },
@@ -548,16 +904,18 @@ private fun RenderStatusRow(
         imageVector = Icons.Default.SyncProblem,
         stringResource(R.string.errors),
         modifier =
-            Modifier.size(15.dp)
+            Modifier
+                .size(15.dp)
                 .combinedClickable(
                     onClick = {},
                     onLongClick = {
                         scope.launch {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.errors),
-                                Toast.LENGTH_SHORT,
-                            )
+                            Toast
+                                .makeText(
+                                    context,
+                                    context.getString(R.string.errors),
+                                    Toast.LENGTH_SHORT,
+                                )
                                 .show()
                         }
                     },
@@ -582,16 +940,18 @@ private fun RenderStatusRow(
         imageVector = Icons.Default.DeleteSweep,
         stringResource(R.string.spam),
         modifier =
-            Modifier.size(15.dp)
+            Modifier
+                .size(15.dp)
                 .combinedClickable(
                     onClick = {},
                     onLongClick = {
                         scope.launch {
-                            Toast.makeText(
-                                context,
-                                context.getString(R.string.spam),
-                                Toast.LENGTH_SHORT,
-                            )
+                            Toast
+                                .makeText(
+                                    context,
+                                    context.getString(R.string.spam),
+                                    Toast.LENGTH_SHORT,
+                                )
                                 .show()
                         }
                     },
@@ -643,17 +1003,19 @@ private fun RenderActiveToggles(
             painterResource(R.drawable.ic_home),
             stringResource(R.string.home_feed),
             modifier =
-                Modifier.padding(horizontal = 5.dp)
+                Modifier
+                    .padding(horizontal = 5.dp)
                     .size(15.dp)
                     .combinedClickable(
                         onClick = { onToggleFollows(item) },
                         onLongClick = {
                             scope.launch {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.home_feed),
-                                    Toast.LENGTH_SHORT,
-                                )
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.home_feed),
+                                        Toast.LENGTH_SHORT,
+                                    )
                                     .show()
                             }
                         },
@@ -676,17 +1038,19 @@ private fun RenderActiveToggles(
             painterResource(R.drawable.ic_dm),
             stringResource(R.string.private_message_feed),
             modifier =
-                Modifier.padding(horizontal = 5.dp)
+                Modifier
+                    .padding(horizontal = 5.dp)
                     .size(15.dp)
                     .combinedClickable(
                         onClick = { onTogglePrivateDMs(item) },
                         onLongClick = {
                             scope.launch {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.private_message_feed),
-                                    Toast.LENGTH_SHORT,
-                                )
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.private_message_feed),
+                                        Toast.LENGTH_SHORT,
+                                    )
                                     .show()
                             }
                         },
@@ -709,17 +1073,19 @@ private fun RenderActiveToggles(
             imageVector = Icons.Default.Groups,
             contentDescription = stringResource(R.string.public_chat_feed),
             modifier =
-                Modifier.padding(horizontal = 5.dp)
+                Modifier
+                    .padding(horizontal = 5.dp)
                     .size(15.dp)
                     .combinedClickable(
                         onClick = { onTogglePublicChats(item) },
                         onLongClick = {
                             scope.launch {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.public_chat_feed),
-                                    Toast.LENGTH_SHORT,
-                                )
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.public_chat_feed),
+                                        Toast.LENGTH_SHORT,
+                                    )
                                     .show()
                             }
                         },
@@ -742,17 +1108,19 @@ private fun RenderActiveToggles(
             imageVector = Icons.Default.Public,
             stringResource(R.string.global_feed),
             modifier =
-                Modifier.padding(horizontal = 5.dp)
+                Modifier
+                    .padding(horizontal = 5.dp)
                     .size(15.dp)
                     .combinedClickable(
                         onClick = { onToggleGlobal(item) },
                         onLongClick = {
                             scope.launch {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.global_feed),
-                                    Toast.LENGTH_SHORT,
-                                )
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.global_feed),
+                                        Toast.LENGTH_SHORT,
+                                    )
                                     .show()
                             }
                         },
@@ -776,17 +1144,19 @@ private fun RenderActiveToggles(
             imageVector = Icons.Default.Search,
             stringResource(R.string.search_feed),
             modifier =
-                Modifier.padding(horizontal = 5.dp)
+                Modifier
+                    .padding(horizontal = 5.dp)
                     .size(15.dp)
                     .combinedClickable(
                         onClick = { onToggleSearch(item) },
                         onLongClick = {
                             scope.launch {
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.search_feed),
-                                    Toast.LENGTH_SHORT,
-                                )
+                                Toast
+                                    .makeText(
+                                        context,
+                                        context.getString(R.string.search_feed),
+                                        Toast.LENGTH_SHORT,
+                                    )
                                     .show()
                             }
                         },
@@ -823,7 +1193,10 @@ private fun FirstLine(
                 Icon(
                     imageVector = Icons.Default.Paid,
                     null,
-                    modifier = Modifier.padding(start = 5.dp, top = 1.dp).size(14.dp),
+                    modifier =
+                        Modifier
+                            .padding(start = 5.dp, top = 1.dp)
+                            .size(14.dp),
                     tint = MaterialTheme.colorScheme.allGoodColor,
                 )
             }
@@ -836,10 +1209,63 @@ private fun FirstLine(
             Icon(
                 imageVector = Icons.Default.Cancel,
                 contentDescription = stringResource(id = R.string.remove),
-                modifier = Modifier.padding(start = 10.dp).size(15.dp),
+                modifier =
+                    Modifier
+                        .padding(start = 10.dp)
+                        .size(15.dp),
                 tint = WarningColor,
             )
         }
+    }
+}
+
+@Composable
+fun EditableServerAdd(
+    relayToAdd: String,
+    onNewRelay: (RelaySetupInfo) -> Unit,
+) {
+    var url by remember { mutableStateOf<TextFieldValue>(TextFieldValue(relayToAdd)) }
+
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = Size5dp)) {
+        MyTextField(
+            value = url,
+            onValueChange = { url = it },
+            label = { Text(text = stringResource(R.string.add_a_relay)) },
+            keyboardOptions =
+                KeyboardOptions.Default.copy(
+                    autoCorrect = false,
+                    capitalization = KeyboardCapitalization.None,
+                ),
+            modifier = Modifier.weight(1f),
+            placeholder = {
+                Text(
+                    text = "wss://server.com",
+                    color = MaterialTheme.colorScheme.placeholderText,
+                    maxLines = 1,
+                )
+            },
+            trailingIcon = {
+                IconButton(
+                    onClick = {
+                        if (url.text.isNotBlank() && url.text != "/") {
+                            var addedWSS =
+                                if (!url.text.startsWith("wss://") && !url.text.startsWith("ws://")) "wss://${url.text}" else url.text
+                            if (url.text.endsWith("/")) addedWSS = addedWSS.dropLast(1)
+                            onNewRelay(RelaySetupInfo(addedWSS, false, true, feedTypes = FeedType.values().toSet()))
+                            url = TextFieldValue("")
+                        }
+                    },
+                    enabled = url.text.isNotBlank(),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        null,
+                        modifier = Size20Modifier,
+                    )
+                }
+            },
+            singleLine = true,
+        )
     }
 }
 
@@ -848,16 +1274,21 @@ fun EditableServerConfig(
     relayToAdd: String,
     onNewRelay: (RelaySetupInfo) -> Unit,
 ) {
-    var url by remember { mutableStateOf<String>(relayToAdd) }
+    var url by remember { mutableStateOf<TextFieldValue>(TextFieldValue(relayToAdd)) }
     var read by remember { mutableStateOf(true) }
     var write by remember { mutableStateOf(true) }
 
     Row(verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(
-            label = { Text(text = stringResource(R.string.add_a_relay)) },
-            modifier = Modifier.weight(1f),
+        MyTextField(
             value = url,
             onValueChange = { url = it },
+            label = { Text(text = stringResource(R.string.add_a_relay)) },
+            keyboardOptions =
+                KeyboardOptions.Default.copy(
+                    autoCorrect = false,
+                    capitalization = KeyboardCapitalization.None,
+                ),
+            modifier = Modifier.weight(1f),
             placeholder = {
                 Text(
                     text = "server.com",
@@ -872,7 +1303,10 @@ fun EditableServerConfig(
             Icon(
                 imageVector = Icons.Default.Download,
                 contentDescription = stringResource(id = R.string.read_from_relay),
-                modifier = Modifier.size(Size35dp).padding(horizontal = 5.dp),
+                modifier =
+                    Modifier
+                        .size(Size35dp)
+                        .padding(horizontal = 5.dp),
                 tint =
                     if (read) {
                         MaterialTheme.colorScheme.allGoodColor
@@ -886,7 +1320,10 @@ fun EditableServerConfig(
             Icon(
                 imageVector = Icons.Default.Upload,
                 contentDescription = stringResource(id = R.string.write_to_relay),
-                modifier = Modifier.size(Size35dp).padding(horizontal = 5.dp),
+                modifier =
+                    Modifier
+                        .size(Size35dp)
+                        .padding(horizontal = 5.dp),
                 tint =
                     if (write) {
                         MaterialTheme.colorScheme.allGoodColor
@@ -898,12 +1335,12 @@ fun EditableServerConfig(
 
         Button(
             onClick = {
-                if (url.isNotBlank() && url != "/") {
+                if (url.text.isNotBlank() && url.text != "/") {
                     var addedWSS =
-                        if (!url.startsWith("wss://") && !url.startsWith("ws://")) "wss://$url" else url
-                    if (url.endsWith("/")) addedWSS = addedWSS.dropLast(1)
+                        if (!url.text.startsWith("wss://") && !url.text.startsWith("ws://")) "wss://${url.text}" else url.text
+                    if (url.text.endsWith("/")) addedWSS = addedWSS.dropLast(1)
                     onNewRelay(RelaySetupInfo(addedWSS, read, write, feedTypes = FeedType.values().toSet()))
-                    url = ""
+                    url = TextFieldValue("")
                     write = true
                     read = true
                 }
@@ -912,7 +1349,7 @@ fun EditableServerConfig(
             colors =
                 ButtonDefaults.buttonColors(
                     containerColor =
-                        if (url.isNotBlank()) {
+                        if (url.text.isNotBlank()) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.placeholderText

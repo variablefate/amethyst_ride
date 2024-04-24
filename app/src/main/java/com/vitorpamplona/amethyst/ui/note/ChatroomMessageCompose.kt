@@ -20,20 +20,19 @@
  */
 package com.vitorpamplona.amethyst.ui.note
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -41,6 +40,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.State
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -51,7 +51,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
@@ -61,12 +60,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.distinctUntilChanged
-import androidx.lifecycle.map
 import com.vitorpamplona.amethyst.R
+import com.vitorpamplona.amethyst.model.FeatureSetType
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.model.User
-import com.vitorpamplona.amethyst.ui.components.CreateClickableTextWithEmoji
 import com.vitorpamplona.amethyst.ui.components.CreateTextWithEmoji
 import com.vitorpamplona.amethyst.ui.components.RobohashFallbackAsyncImage
 import com.vitorpamplona.amethyst.ui.components.SensitivityWarning
@@ -84,22 +81,22 @@ import com.vitorpamplona.amethyst.ui.theme.ReactionRowHeightChat
 import com.vitorpamplona.amethyst.ui.theme.Size10dp
 import com.vitorpamplona.amethyst.ui.theme.Size15Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size20dp
-import com.vitorpamplona.amethyst.ui.theme.Size25dp
 import com.vitorpamplona.amethyst.ui.theme.Size5dp
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
-import com.vitorpamplona.amethyst.ui.theme.StdVertSpacer
+import com.vitorpamplona.amethyst.ui.theme.chatAuthorBox
+import com.vitorpamplona.amethyst.ui.theme.chatAuthorImage
 import com.vitorpamplona.amethyst.ui.theme.mediumImportanceLink
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.amethyst.ui.theme.subtleBorder
 import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.ChannelMetadataEvent
 import com.vitorpamplona.quartz.events.ChatMessageEvent
+import com.vitorpamplona.quartz.events.DraftEvent
 import com.vitorpamplona.quartz.events.EmptyTagList
 import com.vitorpamplona.quartz.events.ImmutableListOfLists
 import com.vitorpamplona.quartz.events.PrivateDmEvent
 import com.vitorpamplona.quartz.events.toImmutableListOfLists
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChatroomMessageCompose(
     baseNote: Note,
@@ -109,113 +106,16 @@ fun ChatroomMessageCompose(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
 ) {
-    val hasEvent by baseNote.live().hasEvent.observeAsState(baseNote.event != null)
-
-    Crossfade(targetState = hasEvent) {
-        if (it) {
-            CheckHiddenChatMessage(
-                baseNote,
-                routeForLastRead,
-                innerQuote,
-                parentBackgroundColor,
-                accountViewModel,
-                nav,
-                onWantsToReply,
-            )
-        } else {
-            LongPressToQuickAction(baseNote = baseNote, accountViewModel = accountViewModel) { showPopup,
-                ->
-                BlankNote(
-                    remember {
-                        Modifier.combinedClickable(
-                            onClick = {},
-                            onLongClick = showPopup,
-                        )
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CheckHiddenChatMessage(
-    baseNote: Note,
-    routeForLastRead: String?,
-    innerQuote: Boolean = false,
-    parentBackgroundColor: MutableState<Color>? = null,
-    accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
-    onWantsToReply: (Note) -> Unit,
-) {
-    val isHidden by
-        remember {
-            accountViewModel.account.liveHiddenUsers
-                .map { baseNote.isHiddenFor(it) }
-                .distinctUntilChanged()
-        }
-            .observeAsState(accountViewModel.isNoteHidden(baseNote))
-
-    if (!isHidden) {
-        LoadedChatMessageCompose(
-            baseNote,
-            routeForLastRead,
-            innerQuote,
-            parentBackgroundColor,
-            accountViewModel,
-            nav,
-            onWantsToReply,
-        )
-    }
-}
-
-@Composable
-fun LoadedChatMessageCompose(
-    baseNote: Note,
-    routeForLastRead: String?,
-    innerQuote: Boolean = false,
-    parentBackgroundColor: MutableState<Color>? = null,
-    accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
-    onWantsToReply: (Note) -> Unit,
-) {
-    var state by remember {
-        mutableStateOf(
-            AccountViewModel.NoteComposeReportState(),
-        )
-    }
-
-    WatchForReports(baseNote, accountViewModel) { newState ->
-        if (state != newState) {
-            state = newState
-        }
-    }
-
-    var showReportedNote by remember { mutableStateOf(false) }
-
-    val showHiddenNote by
-        remember(state, showReportedNote) {
-            derivedStateOf { !state.isAcceptable && !showReportedNote }
-        }
-
-    Crossfade(targetState = showHiddenNote) {
-        if (it) {
-            HiddenNote(
-                state.relevantReports,
-                state.isHiddenAuthor,
-                accountViewModel,
-                Modifier,
-                innerQuote,
-                nav,
-                onClick = { showReportedNote = true },
-            )
-        } else {
-            val canPreview by
-                remember(state, showReportedNote) {
-                    derivedStateOf { (!state.isAcceptable && showReportedNote) || state.canPreview }
-                }
-
+    WatchNoteEvent(baseNote = baseNote, accountViewModel = accountViewModel) {
+        WatchBlockAndReport(
+            note = baseNote,
+            showHiddenWarning = innerQuote,
+            modifier = Modifier.fillMaxWidth(),
+            accountViewModel = accountViewModel,
+            nav = nav,
+        ) { canPreview ->
             NormalChatNote(
                 baseNote,
                 routeForLastRead,
@@ -225,6 +125,7 @@ fun LoadedChatMessageCompose(
                 accountViewModel,
                 nav,
                 onWantsToReply,
+                onWantsToEditDraft,
             )
         }
     }
@@ -241,6 +142,7 @@ fun NormalChatNote(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
 ) {
     val drawAuthorInfo by
         remember(note) {
@@ -292,7 +194,7 @@ fun NormalChatNote(
 
     if (routeForLastRead != null) {
         LaunchedEffect(key1 = routeForLastRead) {
-            accountViewModel.loadAndMarkAsRead(routeForLastRead, note.createdAt()) {}
+            accountViewModel.loadAndMarkAsRead(routeForLastRead, note.createdAt())
         }
     }
 
@@ -306,12 +208,27 @@ fun NormalChatNote(
 
             val modif2 = if (innerQuote) Modifier else ChatBubbleMaxSizeModifier
 
+            val showDetails =
+                remember {
+                    mutableStateOf(
+                        if (accountViewModel.settings.featureSet == FeatureSetType.SIMPLIFIED) {
+                            note.zaps.isNotEmpty() || note.zapPayments.isNotEmpty() || note.reactions.isNotEmpty()
+                        } else {
+                            true
+                        },
+                    )
+                }
+
             val clickableModifier =
                 remember {
                     Modifier.combinedClickable(
                         onClick = {
                             if (note.event is ChannelCreateEvent) {
                                 nav("Channel/${note.idHex}")
+                            } else {
+                                if (accountViewModel.settings.featureSet == FeatureSetType.SIMPLIFIED) {
+                                    showDetails.value = !showDetails.value
+                                }
                             }
                         },
                         onLongClick = { popupExpanded = true },
@@ -339,8 +256,10 @@ fun NormalChatNote(
                         innerQuote,
                         backgroundBubbleColor,
                         onWantsToReply,
+                        onWantsToEditDraft,
                         canPreview,
                         availableBubbleSize,
+                        showDetails,
                         accountViewModel,
                         nav,
                     )
@@ -351,7 +270,9 @@ fun NormalChatNote(
                 note = note,
                 popupExpanded = popupExpanded,
                 onDismiss = { popupExpanded = false },
+                onWantsToEditDraft = { onWantsToEditDraft(note) },
                 accountViewModel = accountViewModel,
+                nav = nav,
             )
         }
     }
@@ -365,8 +286,10 @@ private fun RenderBubble(
     innerQuote: Boolean,
     backgroundBubbleColor: MutableState<Color>,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
     canPreview: Boolean,
     availableBubbleSize: MutableState<Int>,
+    showDetails: State<Boolean>,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
@@ -374,11 +297,13 @@ private fun RenderBubble(
 
     val bubbleModifier =
         remember {
-            Modifier.padding(start = 10.dp, end = 5.dp, bottom = 5.dp).onSizeChanged {
-                if (bubbleSize.intValue != it.width) {
-                    bubbleSize.intValue = it.width
+            Modifier
+                .padding(start = 10.dp, end = 10.dp, bottom = 5.dp)
+                .onSizeChanged {
+                    if (bubbleSize.intValue != it.width) {
+                        bubbleSize.intValue = it.width
+                    }
                 }
-            }
         }
 
     Column(modifier = bubbleModifier) {
@@ -386,14 +311,16 @@ private fun RenderBubble(
             drawAuthorInfo,
             baseNote,
             alignment,
-            nav,
+            availableBubbleSize,
             innerQuote,
             backgroundBubbleColor,
-            accountViewModel,
-            onWantsToReply,
-            canPreview,
             bubbleSize,
-            availableBubbleSize,
+            onWantsToReply,
+            onWantsToEditDraft,
+            canPreview,
+            showDetails,
+            accountViewModel,
+            nav,
         )
     }
 }
@@ -403,69 +330,81 @@ private fun MessageBubbleLines(
     drawAuthorInfo: Boolean,
     baseNote: Note,
     alignment: Arrangement.Horizontal,
-    nav: (String) -> Unit,
+    availableBubbleSize: MutableState<Int>,
     innerQuote: Boolean,
     backgroundBubbleColor: MutableState<Color>,
-    accountViewModel: AccountViewModel,
-    onWantsToReply: (Note) -> Unit,
-    canPreview: Boolean,
     bubbleSize: MutableState<Int>,
-    availableBubbleSize: MutableState<Int>,
+    onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
+    canPreview: Boolean,
+    showDetails: State<Boolean>,
+    accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
 ) {
     if (drawAuthorInfo) {
         DrawAuthorInfo(
             baseNote,
             alignment,
             accountViewModel.settings.showProfilePictures.value,
+            accountViewModel,
             nav,
         )
-    } else {
-        Spacer(modifier = StdVertSpacer)
     }
 
-    RenderReplyRow(
-        note = baseNote,
-        innerQuote = innerQuote,
-        backgroundBubbleColor = backgroundBubbleColor,
-        accountViewModel = accountViewModel,
-        nav = nav,
-        onWantsToReply = onWantsToReply,
-    )
+    if (baseNote.event !is DraftEvent) {
+        RenderReplyRow(
+            note = baseNote,
+            innerQuote = innerQuote,
+            backgroundBubbleColor = backgroundBubbleColor,
+            accountViewModel = accountViewModel,
+            nav = nav,
+            onWantsToReply = onWantsToReply,
+            onWantsToEditDraft = onWantsToEditDraft,
+        )
+    }
 
     NoteRow(
         note = baseNote,
         canPreview = canPreview,
+        innerQuote = innerQuote,
+        onWantsToReply = onWantsToReply,
+        onWantsToEditDraft = onWantsToEditDraft,
         backgroundBubbleColor = backgroundBubbleColor,
         accountViewModel = accountViewModel,
         nav = nav,
     )
 
-    ConstrainedStatusRow(
-        bubbleSize = bubbleSize,
-        availableBubbleSize = availableBubbleSize,
-        firstColumn = {
-            IncognitoBadge(baseNote)
-            ChatTimeAgo(baseNote)
-            RelayBadgesHorizontal(baseNote, accountViewModel, nav = nav)
-            Spacer(modifier = DoubleHorzSpacer)
-        },
-        secondColumn = {
-            LikeReaction(baseNote, MaterialTheme.colorScheme.placeholderText, accountViewModel, nav)
-            Spacer(modifier = StdHorzSpacer)
-            ZapReaction(baseNote, MaterialTheme.colorScheme.placeholderText, accountViewModel, nav = nav)
-            Spacer(modifier = DoubleHorzSpacer)
-            ReplyReaction(
-                baseNote = baseNote,
-                grayTint = MaterialTheme.colorScheme.placeholderText,
-                accountViewModel = accountViewModel,
-                showCounter = false,
-                iconSizeModifier = Size15Modifier,
-            ) {
-                onWantsToReply(baseNote)
-            }
-            Spacer(modifier = StdHorzSpacer)
-        },
-    )
+    if (showDetails.value) {
+        ConstrainedStatusRow(
+            bubbleSize = bubbleSize,
+            availableBubbleSize = availableBubbleSize,
+            firstColumn = {
+                if (baseNote.isDraft()) {
+                    DisplayDraftChat()
+                }
+                IncognitoBadge(baseNote)
+                ChatTimeAgo(baseNote)
+                RelayBadgesHorizontal(baseNote, accountViewModel, nav = nav)
+                Spacer(modifier = DoubleHorzSpacer)
+            },
+            secondColumn = {
+                LikeReaction(baseNote, MaterialTheme.colorScheme.placeholderText, accountViewModel, nav)
+                Spacer(modifier = StdHorzSpacer)
+                ZapReaction(baseNote, MaterialTheme.colorScheme.placeholderText, accountViewModel, nav = nav)
+                Spacer(modifier = DoubleHorzSpacer)
+                ReplyReaction(
+                    baseNote = baseNote,
+                    grayTint = MaterialTheme.colorScheme.placeholderText,
+                    accountViewModel = accountViewModel,
+                    showCounter = false,
+                    iconSizeModifier = Size15Modifier,
+                ) {
+                    onWantsToReply(baseNote)
+                }
+                Spacer(modifier = StdHorzSpacer)
+            },
+        )
+    }
 }
 
 @Composable
@@ -476,11 +415,10 @@ private fun RenderReplyRow(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
 ) {
-    val hasReply by remember { derivedStateOf { !innerQuote && note.replyTo?.lastOrNull() != null } }
-
-    if (hasReply) {
-        RenderReply(note, backgroundBubbleColor, accountViewModel, nav, onWantsToReply)
+    if (!innerQuote && note.replyTo?.lastOrNull() != null) {
+        RenderReply(note, backgroundBubbleColor, accountViewModel, nav, onWantsToReply, onWantsToEditDraft)
     }
 }
 
@@ -491,6 +429,7 @@ private fun RenderReply(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         val replyTo =
@@ -502,13 +441,14 @@ private fun RenderReply(
 
         replyTo.value?.let { note ->
             ChatroomMessageCompose(
-                note,
-                null,
+                baseNote = note,
+                routeForLastRead = null,
                 innerQuote = true,
                 parentBackgroundColor = backgroundBubbleColor,
                 accountViewModel = accountViewModel,
                 nav = nav,
                 onWantsToReply = onWantsToReply,
+                onWantsToEditDraft = onWantsToEditDraft,
             )
         }
     }
@@ -518,27 +458,74 @@ private fun RenderReply(
 private fun NoteRow(
     note: Note,
     canPreview: Boolean,
+    innerQuote: Boolean,
+    onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
     backgroundBubbleColor: MutableState<Color>,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        when (remember(note) { note.event }) {
-            is ChannelCreateEvent -> {
-                RenderCreateChannelNote(note)
-            }
-            is ChannelMetadataEvent -> {
-                RenderChangeChannelMetadataNote(note)
-            }
-            else -> {
-                RenderRegularTextNote(
+        when (note.event) {
+            is ChannelCreateEvent -> RenderCreateChannelNote(note)
+            is ChannelMetadataEvent -> RenderChangeChannelMetadataNote(note)
+            is DraftEvent ->
+                RenderDraftEvent(
                     note,
                     canPreview,
+                    innerQuote,
+                    onWantsToReply,
+                    onWantsToEditDraft,
                     backgroundBubbleColor,
                     accountViewModel,
                     nav,
                 )
-            }
+            else ->
+                RenderRegularTextNote(
+                    note,
+                    canPreview,
+                    innerQuote,
+                    backgroundBubbleColor,
+                    accountViewModel,
+                    nav,
+                )
+        }
+    }
+}
+
+@Composable
+private fun RenderDraftEvent(
+    note: Note,
+    canPreview: Boolean,
+    innerQuote: Boolean,
+    onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
+    backgroundBubbleColor: MutableState<Color>,
+    accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
+) {
+    ObserveDraftEvent(note, accountViewModel) {
+        Column {
+            RenderReplyRow(
+                note = it,
+                innerQuote = innerQuote,
+                backgroundBubbleColor = backgroundBubbleColor,
+                accountViewModel = accountViewModel,
+                nav = nav,
+                onWantsToReply = onWantsToReply,
+                onWantsToEditDraft = onWantsToEditDraft,
+            )
+
+            NoteRow(
+                note = it,
+                canPreview = canPreview,
+                innerQuote = innerQuote,
+                onWantsToReply = onWantsToReply,
+                onWantsToEditDraft = onWantsToEditDraft,
+                backgroundBubbleColor = backgroundBubbleColor,
+                accountViewModel = accountViewModel,
+                nav = nav,
+            )
         }
     }
 }
@@ -555,7 +542,8 @@ private fun ConstrainedStatusRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         modifier =
             with(LocalDensity.current) {
-                Modifier.padding(top = Size5dp)
+                Modifier
+                    .padding(top = Size5dp)
                     .height(Size20dp)
                     .widthIn(
                         bubbleSize.value.toDp(),
@@ -589,7 +577,10 @@ fun IncognitoBadge(baseNote: Note) {
         Icon(
             painter = painterResource(id = R.drawable.incognito),
             null,
-            modifier = Modifier.padding(top = 1.dp).size(14.dp),
+            modifier =
+                Modifier
+                    .padding(top = 1.dp)
+                    .size(14.dp),
             tint = MaterialTheme.colorScheme.placeholderText,
         )
         Spacer(modifier = StdHorzSpacer)
@@ -597,7 +588,10 @@ fun IncognitoBadge(baseNote: Note) {
         Icon(
             painter = painterResource(id = R.drawable.incognito_off),
             null,
-            modifier = Modifier.padding(top = 1.dp).size(14.dp),
+            modifier =
+                Modifier
+                    .padding(top = 1.dp)
+                    .size(14.dp),
             tint = MaterialTheme.colorScheme.placeholderText,
         )
         Spacer(modifier = StdHorzSpacer)
@@ -623,6 +617,7 @@ fun ChatTimeAgo(baseNote: Note) {
 private fun RenderRegularTextNote(
     note: Note,
     canPreview: Boolean,
+    innerQuote: Boolean,
     backgroundBubbleColor: MutableState<Color>,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
@@ -638,6 +633,7 @@ private fun RenderRegularTextNote(
                 TranslatableRichTextViewer(
                     content = eventContent,
                     canPreview = canPreview,
+                    quotesLeft = if (innerQuote) 0 else 1,
                     modifier = HalfTopPadding,
                     tags = tags,
                     backgroundColor = backgroundBubbleColor,
@@ -650,6 +646,7 @@ private fun RenderRegularTextNote(
             TranslatableRichTextViewer(
                 content = stringResource(id = R.string.could_not_decrypt_the_message),
                 canPreview = true,
+                quotesLeft = 0,
                 modifier = HalfTopPadding,
                 tags = EmptyTagList,
                 backgroundColor = backgroundBubbleColor,
@@ -678,7 +675,7 @@ private fun RenderChangeChannelMetadataNote(note: Note) {
 
     CreateTextWithEmoji(
         text = text,
-        tags = remember { note.author?.info?.latestMetadata?.tags?.toImmutableListOfLists() },
+        tags = note.author?.info?.tags,
     )
 }
 
@@ -699,7 +696,7 @@ private fun RenderCreateChannelNote(note: Note) {
 
     CreateTextWithEmoji(
         text = text,
-        tags = remember { note.author?.info?.latestMetadata?.tags?.toImmutableListOfLists() },
+        tags = note.author?.info?.tags,
     )
 }
 
@@ -708,52 +705,52 @@ private fun DrawAuthorInfo(
     baseNote: Note,
     alignment: Arrangement.Horizontal,
     loadProfilePicture: Boolean,
+    accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = alignment,
-        modifier = Modifier.padding(top = Size10dp),
-    ) {
-        DisplayAndWatchNoteAuthor(baseNote, loadProfilePicture, nav)
+    baseNote.author?.let {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = alignment,
+            modifier =
+                Modifier
+                    .padding(top = Size10dp)
+                    .clickable {
+                        nav("User/${baseNote.author?.pubkeyHex}")
+                    },
+        ) {
+            WatchAndDisplayUser(it, loadProfilePicture, accountViewModel, nav)
+        }
     }
-}
-
-@Composable
-private fun DisplayAndWatchNoteAuthor(
-    baseNote: Note,
-    loadProfilePicture: Boolean,
-    nav: (String) -> Unit,
-) {
-    val author = remember { baseNote.author }
-    author?.let { WatchAndDisplayUser(it, loadProfilePicture, nav) }
 }
 
 @Composable
 private fun WatchAndDisplayUser(
     author: User,
     loadProfilePicture: Boolean,
+    accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    val pubkeyHex = remember { author.pubkeyHex }
-    val route = remember { "User/${author.pubkeyHex}" }
+    val userState by author.live().userMetadataInfo.observeAsState()
 
-    val userState by author.live().metadata.observeAsState()
+    Box(chatAuthorBox, contentAlignment = Alignment.TopEnd) {
+        InnerUserPicture(
+            userHex = author.pubkeyHex,
+            userPicture = userState?.picture,
+            userName = userState?.bestName(),
+            size = Size20dp,
+            modifier = Modifier,
+            accountViewModel = accountViewModel,
+        )
 
-    val userDisplayName by
-        remember(userState) { derivedStateOf { userState?.user?.toBestDisplayName() } }
+        ObserveAndDisplayFollowingMark(author.pubkeyHex, Size5dp, accountViewModel)
+    }
 
-    val userProfilePicture by
-        remember(userState) { derivedStateOf { userState?.user?.profilePicture() } }
-
-    val userTags by
-        remember(userState) {
-            derivedStateOf { userState?.user?.info?.latestMetadata?.tags?.toImmutableListOfLists() }
-        }
-
-    UserIcon(pubkeyHex, userProfilePicture, loadProfilePicture, nav, route)
-
-    userDisplayName?.let { DisplayMessageUsername(it, userTags, route, nav) }
+    if (userState != null) {
+        DisplayMessageUsername(userState?.bestName() ?: author.pubkeyDisplayHex(), userState?.tags ?: EmptyTagList)
+    } else {
+        DisplayMessageUsername(author.pubkeyDisplayHex(), EmptyTagList)
+    }
 }
 
 @Composable
@@ -761,42 +758,26 @@ private fun UserIcon(
     pubkeyHex: String,
     userProfilePicture: String?,
     loadProfilePicture: Boolean,
-    nav: (String) -> Unit,
-    route: String,
 ) {
     RobohashFallbackAsyncImage(
         robot = pubkeyHex,
         model = userProfilePicture,
         contentDescription = stringResource(id = R.string.profile_image),
         loadProfilePicture = loadProfilePicture,
-        modifier =
-            remember {
-                Modifier.width(Size25dp)
-                    .height(Size25dp)
-                    .clip(shape = CircleShape)
-                    .clickable(onClick = { nav(route) })
-            },
+        modifier = chatAuthorImage,
     )
 }
 
 @Composable
 private fun DisplayMessageUsername(
     userDisplayName: String,
-    userTags: ImmutableListOfLists<String>?,
-    route: String,
-    nav: (String) -> Unit,
+    userTags: ImmutableListOfLists<String>,
 ) {
     Spacer(modifier = StdHorzSpacer)
-    CreateClickableTextWithEmoji(
-        clickablePart = userDisplayName,
-        maxLines = 1,
+    CreateTextWithEmoji(
+        text = userDisplayName,
         tags = userTags,
+        maxLines = 1,
         fontWeight = FontWeight.Bold,
-        overrideColor = MaterialTheme.colorScheme.onBackground,
-        route = route,
-        nav = nav,
     )
-
-    Spacer(modifier = StdHorzSpacer)
-    DrawPlayName(userDisplayName)
 }

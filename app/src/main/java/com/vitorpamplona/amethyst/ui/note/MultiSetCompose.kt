@@ -20,7 +20,6 @@
  */
 package com.vitorpamplona.amethyst.ui.note
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -36,7 +35,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -54,7 +52,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
@@ -74,13 +71,12 @@ import com.vitorpamplona.amethyst.ui.note.elements.NoteDropDownMenu
 import com.vitorpamplona.amethyst.ui.screen.CombinedZap
 import com.vitorpamplona.amethyst.ui.screen.MultiSetCard
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
-import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.HalfTopPadding
 import com.vitorpamplona.amethyst.ui.theme.NotificationIconModifier
 import com.vitorpamplona.amethyst.ui.theme.NotificationIconModifierSmaller
 import com.vitorpamplona.amethyst.ui.theme.Size10dp
-import com.vitorpamplona.amethyst.ui.theme.Size18dp
 import com.vitorpamplona.amethyst.ui.theme.Size19dp
+import com.vitorpamplona.amethyst.ui.theme.Size20dp
 import com.vitorpamplona.amethyst.ui.theme.Size25dp
 import com.vitorpamplona.amethyst.ui.theme.Size35Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size35dp
@@ -88,14 +84,12 @@ import com.vitorpamplona.amethyst.ui.theme.StdStartPadding
 import com.vitorpamplona.amethyst.ui.theme.WidthAuthorPictureModifier
 import com.vitorpamplona.amethyst.ui.theme.WidthAuthorPictureModifierWithPadding
 import com.vitorpamplona.amethyst.ui.theme.bitcoinColor
-import com.vitorpamplona.amethyst.ui.theme.newItemBackgroundColor
 import com.vitorpamplona.amethyst.ui.theme.overPictureBackground
 import com.vitorpamplona.amethyst.ui.theme.profile35dpModifier
 import com.vitorpamplona.quartz.encoders.Nip30CustomEmoji
 import com.vitorpamplona.quartz.events.EmptyTagList
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.time.ExperimentalTime
 
@@ -115,24 +109,12 @@ fun MultiSetCompose(
 
     val scope = rememberCoroutineScope()
 
-    val defaultBackgroundColor = MaterialTheme.colorScheme.background
-    val backgroundColor = remember { mutableStateOf<Color>(defaultBackgroundColor) }
-    val newItemColor = MaterialTheme.colorScheme.newItemBackgroundColor
-
-    LaunchedEffect(key1 = multiSetCard) {
-        accountViewModel.loadAndMarkAsRead(routeForLastRead, multiSetCard.maxCreatedAt) { isNew ->
-            val newBackgroundColor =
-                if (isNew) {
-                    newItemColor.compositeOver(defaultBackgroundColor)
-                } else {
-                    defaultBackgroundColor
-                }
-
-            if (backgroundColor.value != newBackgroundColor) {
-                launch(Dispatchers.Main) { backgroundColor.value = newBackgroundColor }
-            }
-        }
-    }
+    val backgroundColor =
+        calculateBackgroundColor(
+            createdAt = multiSetCard.maxCreatedAt,
+            routeForLastRead = routeForLastRead,
+            accountViewModel = accountViewModel,
+        )
 
     val columnModifier =
         remember(backgroundColor.value) {
@@ -162,7 +144,8 @@ fun MultiSetCompose(
                 routeForLastRead = null,
                 modifier = HalfTopPadding,
                 isBoostedNote = true,
-                showHidden = showHidden,
+                isHiddenFeed = showHidden,
+                quotesLeft = 1,
                 parentBackgroundColor = backgroundColor,
                 accountViewModel = accountViewModel,
                 nav = nav,
@@ -170,10 +153,6 @@ fun MultiSetCompose(
 
             NoteDropDownMenu(baseNote, popupExpanded, null, accountViewModel, nav)
         }
-
-        HorizontalDivider(
-            thickness = DividerThickness,
-        )
     }
 }
 
@@ -243,7 +222,7 @@ fun RenderLikeGallery(
                     )
                 } else {
                     when (val shortReaction = reactionType) {
-                        "+" -> LikedIcon(modifier.size(Size18dp))
+                        "+" -> LikedIcon(modifier.size(Size19dp))
                         "-" -> Text(text = "\uD83D\uDC4E", modifier = modifier)
                         else -> Text(text = shortReaction, modifier = modifier)
                     }
@@ -288,7 +267,7 @@ fun RenderBoostGallery(
             modifier = NotificationIconModifierSmaller,
         ) {
             RepostedIcon(
-                modifier = remember { Modifier.size(Size19dp).align(Alignment.TopEnd) },
+                modifier = remember { Modifier.size(Size20dp).align(Alignment.TopEnd) },
             )
         }
 
@@ -309,7 +288,7 @@ fun RenderBoostGallery(
             modifier = NotificationIconModifierSmaller,
         ) {
             RepostedIcon(
-                modifier = remember { Modifier.size(Size19dp).align(Alignment.TopEnd) },
+                modifier = remember { Modifier.size(Size20dp).align(Alignment.TopEnd) },
             )
         }
 
@@ -471,6 +450,7 @@ fun CrossfadeToDisplayComment(
     TranslatableRichTextViewer(
         content = comment,
         canPreview = true,
+        quotesLeft = 1,
         tags = EmptyTagList,
         modifier = textBoxModifier,
         backgroundColor = backgroundColor,
@@ -513,13 +493,11 @@ private fun BoxedAuthor(
     accountViewModel: AccountViewModel,
 ) {
     Box(modifier = Size35Modifier.clickable(onClick = { nav(authorRouteFor(note)) })) {
-        WatchNoteAuthor(note) { targetAuthor ->
-            Crossfade(targetState = targetAuthor, modifier = Size35Modifier) { author ->
-                WatchUserMetadataAndFollowsAndRenderUserProfilePictureOrDefaultAuthor(
-                    author,
-                    accountViewModel,
-                )
-            }
+        WatchAuthorWithBlank(note, Size35Modifier) { author ->
+            WatchUserMetadataAndFollowsAndRenderUserProfilePictureOrDefaultAuthor(
+                author,
+                accountViewModel,
+            )
         }
     }
 }
@@ -563,16 +541,6 @@ fun WatchUserMetadataAndFollowsAndRenderUserProfilePicture(
         }
         // }
     }
-}
-
-@Composable
-private fun WatchNoteAuthor(
-    baseNote: Note,
-    onContent: @Composable (User?) -> Unit,
-) {
-    val author by baseNote.live().authorChanges.observeAsState(baseNote.author)
-
-    onContent(author)
 }
 
 @Composable

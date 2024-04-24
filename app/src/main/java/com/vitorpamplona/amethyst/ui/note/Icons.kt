@@ -20,7 +20,13 @@
  */
 package com.vitorpamplona.amethyst.ui.note
 
+import Following
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -38,18 +44,29 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Report
+import androidx.compose.material.icons.materialIcon
+import androidx.compose.material.icons.materialPath
+import androidx.compose.material.icons.outlined.ArrowForwardIos
 import androidx.compose.material.icons.outlined.BarChart
+import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import com.vitorpamplona.amethyst.R
+import com.vitorpamplona.amethyst.commons.hashtags.Amethyst
+import com.vitorpamplona.amethyst.commons.hashtags.Cashu
+import com.vitorpamplona.amethyst.commons.hashtags.CustomHashTagIcons
 import com.vitorpamplona.amethyst.ui.theme.BitcoinOrange
 import com.vitorpamplona.amethyst.ui.theme.Size18Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size20Modifier
@@ -61,7 +78,7 @@ import com.vitorpamplona.amethyst.ui.theme.subtleButton
 @Composable
 fun AmethystIcon(iconSize: Dp) {
     Icon(
-        painter = painterResource(R.drawable.amethyst),
+        imageVector = CustomHashTagIcons.Amethyst,
         contentDescription = stringResource(id = R.string.app_logo),
         modifier = Modifier.size(iconSize),
         tint = Color.Unspecified,
@@ -71,9 +88,9 @@ fun AmethystIcon(iconSize: Dp) {
 @Composable
 fun FollowingIcon(iconSize: Dp) {
     Icon(
-        painter = painterResource(R.drawable.following),
+        imageVector = Following,
         contentDescription = stringResource(id = R.string.following),
-        modifier = remember(iconSize) { Modifier.size(iconSize) },
+        modifier = Modifier.size(iconSize),
         tint = Color.Unspecified,
     )
 }
@@ -128,11 +145,6 @@ fun HashCheckFailedIcon(iconSize: Dp) {
         modifier = remember(iconSize) { Modifier.size(iconSize) },
         tint = Color.Red,
     )
-}
-
-@Composable
-fun LikedIcon(iconSize: Dp) {
-    LikedIcon(modifier = remember(iconSize) { Modifier.size(iconSize) })
 }
 
 @Composable
@@ -194,6 +206,18 @@ fun ZappedIcon(modifier: Modifier) {
     ZapIcon(modifier = modifier, BitcoinOrange)
 }
 
+@Preview
+@Composable
+fun ReactionRowIconPreview() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        CommentIcon(Size20Modifier, Color.Unspecified)
+        RepostedIcon(Size20Modifier)
+        LikeIcon(Size20Modifier, Color.Unspecified)
+        ZapIcon(Size20Modifier)
+        ZappedIcon(Size20Modifier)
+    }
+}
+
 @Composable
 fun ZapIcon(
     modifier: Modifier,
@@ -211,7 +235,7 @@ fun ZapIcon(
 @Composable
 fun CashuIcon(modifier: Modifier) {
     Icon(
-        painter = painterResource(R.drawable.cashu),
+        imageVector = CustomHashTagIcons.Cashu,
         "Cashu",
         tint = Color.Unspecified,
         modifier = modifier,
@@ -506,3 +530,75 @@ fun IncognitoIconOff(
         tint = tint,
     )
 }
+
+@Composable
+fun ZapSplitIcon(
+    modifier: Modifier = Size20Modifier,
+    tint: Color = BitcoinOrange,
+) {
+    Icon(
+        imageVector = ZapSplitVector,
+        contentDescription = stringResource(id = R.string.zap_split_title),
+        modifier = modifier,
+        tint = tint,
+    )
+}
+
+@Preview
+@Composable
+fun ZapSplitPreview() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            Modifier.height(20.dp).width(25.dp),
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Bolt,
+                contentDescription = stringResource(id = R.string.zaps),
+                modifier = Modifier.size(20.dp).align(Alignment.CenterStart),
+                tint = BitcoinOrange,
+            )
+            Icon(
+                imageVector = Icons.Outlined.ArrowForwardIos,
+                contentDescription = stringResource(id = R.string.zaps),
+                modifier = Modifier.size(13.dp).align(Alignment.CenterEnd),
+                tint = BitcoinOrange,
+            )
+        }
+        ZapSplitIcon(tint = BitcoinOrange)
+    }
+}
+
+public val ZapSplitVector: ImageVector
+    get() {
+        if (zapSplit != null) {
+            return zapSplit!!
+        }
+        zapSplit =
+            materialIcon(name = "ZapSplit") {
+                materialPath {
+                    moveTo(7.0f, 21.0f)
+                    horizontalLineToRelative(-1.0f)
+                    lineToRelative(1.0f, -7.0f)
+                    horizontalLineTo(3.5f)
+                    curveToRelative(-0.88f, 0.0f, -0.33f, -0.75f, -0.31f, -0.78f)
+                    curveTo(4.48f, 10.94f, 6.42f, 7.54f, 9.01f, 3.0f)
+                    horizontalLineToRelative(1.0f)
+                    lineToRelative(-1.0f, 7.0f)
+                    horizontalLineToRelative(3.51f)
+                    curveToRelative(0.4f, 0.0f, 0.62f, 0.19f, 0.4f, 0.66f)
+                    curveTo(8.97f, 17.55f, 7.0f, 21.0f, 7.0f, 21.0f)
+                    close()
+                    moveTo(14.59f, 16.59f)
+                    lineTo(19.17f, 12.0f)
+                    lineTo(14.59f, 7.41f)
+                    lineTo(16.0f, 6.0f)
+                    lineToRelative(6.0f, 6.0f)
+                    lineToRelative(-6.0f, 6.0f)
+                    lineToRelative(-1.41f, -1.41f)
+                    close()
+                }
+            }
+        return zapSplit!!
+    }
+
+private var zapSplit: ImageVector? = null

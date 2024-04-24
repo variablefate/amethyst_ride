@@ -69,7 +69,6 @@ import com.vitorpamplona.amethyst.ui.layouts.ChatHeaderLayout
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.theme.AccountPictureModifier
 import com.vitorpamplona.amethyst.ui.theme.Size55dp
-import com.vitorpamplona.amethyst.ui.theme.emptyLineItemModifier
 import com.vitorpamplona.amethyst.ui.theme.grayText
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.encoders.HexKey
@@ -77,8 +76,7 @@ import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.ChannelMetadataEvent
 import com.vitorpamplona.quartz.events.ChatroomKey
 import com.vitorpamplona.quartz.events.ChatroomKeyable
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
+import com.vitorpamplona.quartz.events.DraftEvent
 
 @Composable
 fun ChatroomHeaderCompose(
@@ -86,12 +84,15 @@ fun ChatroomHeaderCompose(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    val hasEvent by baseNote.live().hasEvent.observeAsState(baseNote.event != null)
-
-    if (hasEvent) {
+    if (baseNote.event != null) {
         ChatroomComposeChannelOrUser(baseNote, accountViewModel, nav)
     } else {
-        BlankNote()
+        val hasEvent by baseNote.live().hasEvent.observeAsState(baseNote.event != null)
+        if (hasEvent) {
+            ChatroomComposeChannelOrUser(baseNote, accountViewModel, nav)
+        } else {
+            BlankNote()
+        }
     }
 }
 
@@ -101,12 +102,24 @@ fun ChatroomComposeChannelOrUser(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    val channelHex by remember(baseNote) { derivedStateOf { baseNote.channelHex() } }
+    if (baseNote.event is DraftEvent) {
+        ObserveDraftEvent(baseNote, accountViewModel) {
+            val channelHex by remember(it) { derivedStateOf { it.channelHex() } }
 
-    if (channelHex != null) {
-        ChatroomChannel(channelHex!!, baseNote, accountViewModel, nav)
+            if (channelHex != null) {
+                ChatroomChannel(channelHex!!, it, accountViewModel, nav)
+            } else {
+                ChatroomPrivateMessages(it, accountViewModel, nav)
+            }
+        }
     } else {
-        ChatroomPrivateMessages(baseNote, accountViewModel, nav)
+        val channelHex by remember(baseNote) { derivedStateOf { baseNote.channelHex() } }
+
+        if (channelHex != null) {
+            ChatroomChannel(channelHex!!, baseNote, accountViewModel, nav)
+        } else {
+            ChatroomPrivateMessages(baseNote, accountViewModel, nav)
+        }
     }
 }
 
@@ -127,9 +140,7 @@ private fun ChatroomPrivateMessages(
         if (room != null) {
             UserRoomCompose(baseNote, room, accountViewModel, nav)
         } else {
-            Box(emptyLineItemModifier) {
-                // Makes sure just a max amount of objects are loaded.
-            }
+            BlankNote()
         }
     }
 }
@@ -408,11 +419,8 @@ private fun WatchNotificationChanges(
     onNewStatus: (Boolean) -> Unit,
 ) {
     LaunchedEffect(key1 = note, accountViewModel.accountMarkAsReadUpdates.intValue) {
-        launch(Dispatchers.IO) {
-            note.event?.createdAt()?.let {
-                val lastTime = accountViewModel.account.loadLastRead(route)
-                onNewStatus(it > lastTime)
-            }
+        note.event?.createdAt()?.let {
+            onNewStatus(it > accountViewModel.account.loadLastRead(route))
         }
     }
 }

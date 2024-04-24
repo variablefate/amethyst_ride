@@ -23,8 +23,6 @@ package com.vitorpamplona.amethyst.ui.note
 import android.content.Context
 import android.util.Log
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -32,7 +30,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -45,7 +42,6 @@ import com.vitorpamplona.amethyst.model.User
 import com.vitorpamplona.amethyst.service.tts.TextToSpeechHelper
 import com.vitorpamplona.amethyst.ui.components.CreateTextWithEmoji
 import com.vitorpamplona.amethyst.ui.theme.StdButtonSizeModifier
-import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.events.ImmutableListOfLists
 
@@ -53,13 +49,45 @@ import com.vitorpamplona.quartz.events.ImmutableListOfLists
 fun NoteUsernameDisplay(
     baseNote: Note,
     weight: Modifier = Modifier,
-    showPlayButton: Boolean = true,
     textColor: Color = Color.Unspecified,
 ) {
-    val authorState by baseNote.live().authorChanges.observeAsState(baseNote.author)
+    WatchAuthor(baseNote) {
+        UsernameDisplay(it, weight, textColor = textColor)
+    }
+}
 
-    Crossfade(targetState = authorState, modifier = weight, label = "NoteUsernameDisplay") {
-        it?.let { UsernameDisplay(it, weight, showPlayButton, textColor = textColor) }
+@Composable
+fun WatchAuthor(
+    baseNote: Note,
+    inner: @Composable (User) -> Unit,
+) {
+    val noteAuthor = baseNote.author
+    if (noteAuthor != null) {
+        inner(noteAuthor)
+    } else {
+        val authorState by baseNote.live().metadata.observeAsState()
+
+        authorState?.note?.author?.let {
+            inner(it)
+        }
+    }
+}
+
+@Composable
+fun WatchAuthorWithBlank(
+    baseNote: Note,
+    modifier: Modifier = Modifier,
+    inner: @Composable (User?) -> Unit,
+) {
+    val noteAuthor = baseNote.author
+    if (noteAuthor != null) {
+        inner(noteAuthor)
+    } else {
+        val authorState by baseNote.live().metadata.observeAsState()
+
+        Crossfade(targetState = authorState?.note?.author, modifier = modifier, label = "WatchAuthorWithBlank") { newAuthor ->
+            inner(newAuthor)
+        }
     }
 }
 
@@ -67,16 +95,15 @@ fun NoteUsernameDisplay(
 fun UsernameDisplay(
     baseUser: User,
     weight: Modifier = Modifier,
-    showPlayButton: Boolean = true,
     fontWeight: FontWeight = FontWeight.Bold,
     textColor: Color = Color.Unspecified,
 ) {
     val userMetadata by baseUser.live().userMetadataInfo.observeAsState(baseUser.info)
 
     Crossfade(targetState = userMetadata, modifier = weight, label = "UsernameDisplay") {
-        val name = it?.bestDisplayName() ?: it?.bestUsername()
+        val name = it?.bestName()
         if (name != null) {
-            UserDisplay(name, it?.tags, weight, showPlayButton, fontWeight, textColor)
+            UserDisplay(name, it.tags, weight, fontWeight, textColor)
         } else {
             NPubDisplay(baseUser, weight, fontWeight, textColor)
         }
@@ -105,26 +132,18 @@ private fun UserDisplay(
     bestDisplayName: String,
     tags: ImmutableListOfLists<String>?,
     modifier: Modifier,
-    showPlayButton: Boolean = true,
     fontWeight: FontWeight = FontWeight.Bold,
     textColor: Color = Color.Unspecified,
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
-        CreateTextWithEmoji(
-            text = bestDisplayName,
-            tags = tags,
-            fontWeight = fontWeight,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = modifier,
-            color = textColor,
-        )
-
-        if (showPlayButton) {
-            Spacer(StdHorzSpacer)
-            DrawPlayName(bestDisplayName)
-        }
-    }
+    CreateTextWithEmoji(
+        text = bestDisplayName,
+        tags = tags,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = modifier,
+        color = textColor,
+    )
 }
 
 @Composable

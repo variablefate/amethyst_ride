@@ -20,6 +20,8 @@
  */
 package com.vitorpamplona.amethyst.ui.theme
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,6 +35,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.unit.dp
 
 val Shapes =
@@ -90,6 +95,7 @@ val Size40dp = 40.dp
 val Size55dp = 55.dp
 val Size75dp = 75.dp
 
+val HalfEndPadding = Modifier.padding(end = 5.dp)
 val HalfStartPadding = Modifier.padding(start = 5.dp)
 val StdStartPadding = Modifier.padding(start = 10.dp)
 val StdTopPadding = Modifier.padding(top = 10.dp)
@@ -97,6 +103,9 @@ val HalfTopPadding = Modifier.padding(top = 5.dp)
 
 val HalfPadding = Modifier.padding(5.dp)
 val StdPadding = Modifier.padding(10.dp)
+val BigPadding = Modifier.padding(15.dp)
+
+val RowColSpacing = Arrangement.spacedBy(3.dp)
 
 val HalfHorzPadding = Modifier.padding(horizontal = 5.dp)
 val HalfVertPadding = Modifier.padding(vertical = 5.dp)
@@ -132,6 +141,8 @@ val ReactionRowExpandButton = Modifier.width(65.dp).padding(start = 31.dp)
 
 val WidthAuthorPictureModifier = Modifier.width(55.dp)
 val WidthAuthorPictureModifierWithPadding = Modifier.width(65.dp)
+
+val VideoReactionColumnPadding = Modifier.padding(bottom = 75.dp)
 
 val DividerThickness = 0.25.dp
 
@@ -173,14 +184,14 @@ val ZeroPadding = PaddingValues(0.dp)
 val FeedPadding = PaddingValues(top = 10.dp, bottom = 10.dp)
 val ButtonPadding = PaddingValues(vertical = 6.dp, horizontal = 16.dp)
 
-val ChatPaddingInnerQuoteModifier = Modifier.padding(top = 10.dp, end = 5.dp)
+val ChatPaddingInnerQuoteModifier = Modifier.padding(top = 10.dp)
 val ChatPaddingModifier =
     Modifier.fillMaxWidth(1f)
         .padding(
             start = 12.dp,
             end = 12.dp,
-            top = 5.dp,
-            bottom = 5.dp,
+            top = 3.dp,
+            bottom = 3.dp,
         )
 
 val profileContentHeaderModifier =
@@ -197,14 +208,6 @@ val imageHeaderBannerSize = Modifier.fillMaxWidth().height(150.dp)
 
 val authorNotePictureForImageHeader = Modifier.size(75.dp).padding(10.dp)
 
-val normalNoteModifier =
-    Modifier.fillMaxWidth()
-        .padding(
-            start = 12.dp,
-            end = 12.dp,
-            top = 0.dp,
-        )
-
 val normalWithTopMarginNoteModifier =
     Modifier.fillMaxWidth()
         .padding(
@@ -220,3 +223,20 @@ val boostedNoteModifier =
             end = 0.dp,
             top = 0.dp,
         )
+
+val liveStreamTag =
+    Modifier
+        .clip(SmallBorder)
+        .background(Color.Black)
+        .padding(horizontal = Size5dp)
+
+val chatAuthorBox = Modifier.size(20.dp)
+val chatAuthorImage = Modifier.size(20.dp).clip(shape = CircleShape)
+val AuthorInfoVideoFeed = Modifier.width(75.dp).padding(end = 15.dp)
+
+val inlinePlaceholder =
+    Placeholder(
+        width = Font17SP,
+        height = Font17SP,
+        placeholderVerticalAlign = PlaceholderVerticalAlign.Center,
+    )

@@ -52,6 +52,26 @@ class ClassifiedsEvent(
 
     fun location() = tags.firstOrNull { it.size > 1 && it[0] == "location" }?.get(1)
 
+    fun isWellFormed(): Boolean {
+        var hasImage = false
+        var hasTitle = false
+        var hasPrice = false
+
+        tags.forEach {
+            if (it.size > 1) {
+                if (it[0] == "image") {
+                    hasImage = true
+                } else if (it[0] == "title") {
+                    hasTitle = true
+                } else if (it[0] == "price") {
+                    hasPrice = true
+                }
+            }
+        }
+
+        return hasImage && hasPrice && hasTitle
+    }
+
     fun publishedAt() =
         try {
             tags.firstOrNull { it.size > 1 && it[0] == "published_at" }?.get(1)?.toLongOrNull()
@@ -93,6 +113,7 @@ class ClassifiedsEvent(
             nip94attachments: List<Event>? = null,
             signer: NostrSigner,
             createdAt: Long = TimeUtils.now(),
+            isDraft: Boolean,
             onReady: (ClassifiedsEvent) -> Unit,
         ) {
             val tags = mutableListOf<Array<String>>()
@@ -172,7 +193,11 @@ class ClassifiedsEvent(
             }
             tags.add(arrayOf("alt", ALT))
 
-            signer.sign(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            if (isDraft) {
+                signer.assembleRumor(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            } else {
+                signer.sign(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            }
         }
     }
 }

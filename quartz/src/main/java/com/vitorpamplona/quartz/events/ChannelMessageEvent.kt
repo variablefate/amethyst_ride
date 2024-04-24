@@ -60,6 +60,7 @@ class ChannelMessageEvent(
             zapRaiserAmount: Long?,
             geohash: String? = null,
             nip94attachments: List<FileHeaderEvent>? = null,
+            isDraft: Boolean,
             onReady: (ChannelMessageEvent) -> Unit,
         ) {
             val tags =
@@ -87,7 +88,11 @@ class ChannelMessageEvent(
                 arrayOf("alt", ALT),
             )
 
-            signer.sign(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            if (isDraft) {
+                signer.assembleRumor(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            } else {
+                signer.sign(createdAt, KIND, tags.toTypedArray(), message, onReady)
+            }
         }
     }
 }

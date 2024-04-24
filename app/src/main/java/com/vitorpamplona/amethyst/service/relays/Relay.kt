@@ -50,6 +50,9 @@ enum class FeedType {
 val COMMON_FEED_TYPES =
     setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS, FeedType.GLOBAL)
 
+val EVENT_FINDER_TYPES =
+    setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.GLOBAL)
+
 class Relay(
     val url: String,
     val read: Boolean = true,
@@ -63,7 +66,12 @@ class Relay(
         const val RECONNECTING_IN_SECONDS = 60 * 3
     }
 
-    private val httpClient = HttpClientManager.getHttpClient()
+    private val httpClient =
+        if (url.startsWith("ws://127.0.0.1") || url.startsWith("ws://localhost")) {
+            HttpClientManager.getHttpClient(false)
+        } else {
+            HttpClientManager.getHttpClient()
+        }
 
     private var listeners = setOf<Listener>()
     private var socket: WebSocket? = null
@@ -82,6 +90,7 @@ class Relay(
     var afterEOSEPerSubscription = mutableMapOf<String, Boolean>()
 
     val authResponse = mutableMapOf<HexKey, Boolean>()
+    val sendWhenReady = mutableListOf<EventInterface>()
 
     fun register(listener: Listener) {
         listeners = listeners.plus(listener)
@@ -158,6 +167,13 @@ class Relay(
 
             // Log.w("Relay", "Relay OnOpen, Loading All subscriptions $url")
             onConnected(this@Relay)
+
+            synchronized(sendWhenReady) {
+                sendWhenReady.forEach {
+                    send(it)
+                }
+                sendWhenReady.clear()
+            }
 
             listeners.forEach { it.onRelayStateChange(this@Relay, StateType.CONNECT, null) }
         }
@@ -264,6 +280,7 @@ class Relay(
                 val event = Event.fromJson(msgArray.get(2))
 
                 // Log.w("Relay", "Relay onEVENT ${event.kind} $url, $subscriptionId ${msgArray.get(2)}")
+
                 listeners.forEach {
                     it.onEvent(
                         this@Relay,
@@ -344,19 +361,23 @@ class Relay(
         afterEOSEPerSubscription = LinkedHashMap(afterEOSEPerSubscription.size)
     }
 
-    fun sendFilter(requestId: String) {
+    fun sendFilter(
+        requestId: String,
+        filters: List<TypedFilter>,
+    ) {
         checkNotInMainThread()
 
         if (read) {
             if (isConnected()) {
                 if (isReady) {
-                    val filters =
-                        Client.getSubscriptionFilters(requestId).filter { filter ->
+                    val relayFilters =
+                        filters.filter { filter ->
                             activeTypes.any { it in filter.types }
                         }
-                    if (filters.isNotEmpty()) {
+
+                    if (relayFilters.isNotEmpty()) {
                         val request =
-                            filters.joinToStringLimited(
+                            relayFilters.joinToStringLimited(
                                 separator = ",",
                                 limit = 20,
                                 prefix = """["REQ","$requestId",""",
@@ -423,7 +444,9 @@ class Relay(
 
     fun renewFilters() {
         // Force update all filters after AUTH.
-        Client.allSubscriptions().forEach { sendFilter(requestId = it) }
+        Client.allSubscriptions().forEach {
+            sendFilter(requestId = it.key, it.value)
+        }
     }
 
     fun send(signedEvent: EventInterface) {
@@ -442,6 +465,10 @@ class Relay(
                     if (isReady) {
                         socket?.send(event)
                         eventUploadCounterInBytes += event.bytesUsedInMemory()
+                    } else {
+                        synchronized(sendWhenReady) {
+                            sendWhenReady.add(signedEvent)
+                        }
                     }
                 } else {
                     // sends all filters after connection is successful.
@@ -452,7 +479,7 @@ class Relay(
                         eventUploadCounterInBytes += event.bytesUsedInMemory()
 
                         // Sends everything.
-                        Client.allSubscriptions().forEach { sendFilter(requestId = it) }
+                        renewFilters()
                     }
                 }
             }

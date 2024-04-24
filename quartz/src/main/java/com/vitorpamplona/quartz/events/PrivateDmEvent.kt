@@ -40,6 +40,8 @@ class PrivateDmEvent(
 ) : Event(id, pubKey, createdAt, KIND, tags, content, sig), ChatroomKeyable {
     @Transient private var decryptedContent: Map<HexKey, String> = mapOf()
 
+    override fun isContentEncoded() = true
+
     /**
      * This may or may not be the actual recipient's pub key. The event is intended to look like a
      * nip-04 EncryptedDmEvent but may omit the recipient, too. This value can be queried and used for
@@ -124,6 +126,7 @@ class PrivateDmEvent(
             zapRaiserAmount: Long?,
             geohash: String? = null,
             nip94attachments: List<FileHeaderEvent>? = null,
+            isDraft: Boolean,
             onReady: (PrivateDmEvent) -> Unit,
         ) {
             var message = msg
@@ -143,7 +146,7 @@ class PrivateDmEvent(
 
             val tags = mutableListOf<Array<String>>()
             publishedRecipientPubKey?.let { tags.add(arrayOf("p", publishedRecipientPubKey)) }
-            replyTos?.forEach { tags.add(arrayOf("e", it)) }
+            replyTos?.forEach { tags.add(arrayOf("e", it, "", "reply")) }
             mentions?.forEach { tags.add(arrayOf("p", it)) }
             zapReceiver?.forEach {
                 tags.add(arrayOf("zap", it.lnAddressOrPubKeyHex, it.relay ?: "", it.weight.toString()))
@@ -165,7 +168,11 @@ class PrivateDmEvent(
             tags.add(arrayOf("alt", ALT))
 
             signer.nip04Encrypt(message, recipientPubKey) { content ->
-                signer.sign(createdAt, KIND, tags.toTypedArray(), content, onReady)
+                if (isDraft) {
+                    signer.assembleRumor(createdAt, KIND, tags.toTypedArray(), content, onReady)
+                } else {
+                    signer.sign(createdAt, KIND, tags.toTypedArray(), content, onReady)
+                }
             }
         }
     }

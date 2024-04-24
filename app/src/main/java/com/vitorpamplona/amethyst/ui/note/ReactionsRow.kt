@@ -67,6 +67,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -109,13 +110,13 @@ import com.vitorpamplona.amethyst.ui.theme.ButtonBorder
 import com.vitorpamplona.amethyst.ui.theme.DarkerGreen
 import com.vitorpamplona.amethyst.ui.theme.Font14SP
 import com.vitorpamplona.amethyst.ui.theme.HalfDoubleVertSpacer
-import com.vitorpamplona.amethyst.ui.theme.HalfStartPadding
 import com.vitorpamplona.amethyst.ui.theme.Height24dpModifier
 import com.vitorpamplona.amethyst.ui.theme.ModifierWidth3dp
 import com.vitorpamplona.amethyst.ui.theme.NoSoTinyBorders
 import com.vitorpamplona.amethyst.ui.theme.ReactionRowExpandButton
 import com.vitorpamplona.amethyst.ui.theme.ReactionRowHeight
 import com.vitorpamplona.amethyst.ui.theme.ReactionRowZapraiserSize
+import com.vitorpamplona.amethyst.ui.theme.RowColSpacing
 import com.vitorpamplona.amethyst.ui.theme.Size0dp
 import com.vitorpamplona.amethyst.ui.theme.Size16Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size17Modifier
@@ -227,7 +228,11 @@ private fun GenericInnerReactionRow(
     five: @Composable () -> Unit,
     six: @Composable () -> Unit,
 ) {
-    Row(verticalAlignment = CenterVertically, modifier = ReactionRowHeight) {
+    Row(
+        verticalAlignment = CenterVertically,
+        horizontalArrangement = RowColSpacing,
+        modifier = ReactionRowHeight,
+    ) {
         val fullWeight = remember { Modifier.weight(1f) }
 
         if (showReactionDetail) {
@@ -239,11 +244,11 @@ private fun GenericInnerReactionRow(
             }
         }
 
-        Row(verticalAlignment = CenterVertically, modifier = fullWeight) { two() }
+        Row(verticalAlignment = CenterVertically, horizontalArrangement = RowColSpacing, modifier = fullWeight) { two() }
 
-        Row(verticalAlignment = CenterVertically, modifier = fullWeight) { three() }
+        Row(verticalAlignment = CenterVertically, horizontalArrangement = RowColSpacing, modifier = fullWeight) { three() }
 
-        Row(verticalAlignment = CenterVertically, modifier = fullWeight) { four() }
+        Row(verticalAlignment = CenterVertically, horizontalArrangement = RowColSpacing, modifier = fullWeight) { four() }
 
         Row(verticalAlignment = CenterVertically, modifier = fullWeight) { five() }
 
@@ -305,7 +310,12 @@ fun RenderZapRaiser(
         }
 
     LinearProgressIndicator(
-        modifier = remember(details) { Modifier.fillMaxWidth().height(if (details) 24.dp else 4.dp) },
+        modifier =
+            remember(details) {
+                Modifier
+                    .fillMaxWidth()
+                    .height(if (details) 24.dp else 4.dp)
+            },
         color = color,
         progress = { zapraiserStatus.progress },
     )
@@ -585,6 +595,13 @@ fun ReplyReaction(
     IconButton(
         modifier = iconSizeModifier,
         onClick = {
+            if (baseNote.isDraft()) {
+                accountViewModel.toast(
+                    R.string.draft_note,
+                    R.string.it_s_not_possible_to_reply_to_a_draft_note,
+                )
+                return@IconButton
+            }
             if (accountViewModel.isWriteable()) {
                 onPress()
             } else {
@@ -656,18 +673,17 @@ fun TextCount(
         text = showCount(count),
         fontSize = Font14SP,
         color = textColor,
-        modifier = HalfStartPadding,
         maxLines = 1,
     )
 }
 
 @Composable
 fun SlidingAnimationAmount(
-    amount: MutableState<String>,
+    amount: String,
     textColor: Color,
 ) {
     AnimatedContent(
-        targetState = amount.value,
+        targetState = amount,
         transitionSpec = AnimatedContentTransitionScope<String>::transitionSpec,
         label = "SlidingAnimationAmount",
     ) { count ->
@@ -772,7 +788,8 @@ fun LikeReaction(
     Box(
         contentAlignment = Center,
         modifier =
-            Modifier.size(iconSize)
+            Modifier
+                .size(iconSize)
                 .combinedClickable(
                     role = Role.Button,
                     interactionSource = remember { MutableInteractionSource() },
@@ -780,6 +797,7 @@ fun LikeReaction(
                     onClick = {
                         likeClick(
                             accountViewModel,
+                            baseNote,
                             onMultipleChoices = { wantsToReact = true },
                             onWantsToSignReaction = { accountViewModel.reactToOrDelete(baseNote) },
                         )
@@ -788,7 +806,7 @@ fun LikeReaction(
                 ),
     ) {
         ObserveLikeIcon(baseNote, accountViewModel) { reactionType ->
-            Crossfade(targetState = reactionType.value, label = "LikeIcon") {
+            Crossfade(targetState = reactionType, label = "LikeIcon") {
                 if (it != null) {
                     RenderReactionType(it, heartSizeModifier, iconFontSize)
                 } else {
@@ -826,19 +844,17 @@ fun LikeReaction(
 fun ObserveLikeIcon(
     baseNote: Note,
     accountViewModel: AccountViewModel,
-    inner: @Composable (MutableState<String?>) -> Unit,
+    inner: @Composable (String?) -> Unit,
 ) {
-    val reactionType = remember(baseNote) { mutableStateOf<String?>(null) }
-
     val reactionsState by baseNote.live().reactions.observeAsState()
 
-    LaunchedEffect(key1 = reactionsState) {
-        accountViewModel.loadReactionTo(reactionsState?.note) { newReactionType ->
-            if (reactionType.value != newReactionType) {
-                reactionType.value = newReactionType
+    val reactionType by
+        produceState(initialValue = null as String?, key1 = reactionsState) {
+            val newReactionType = accountViewModel.loadReactionTo(reactionsState?.note)
+            if (value != newReactionType) {
+                value = newReactionType
             }
         }
-    }
 
     inner(reactionType)
 }
@@ -884,9 +900,17 @@ fun ObserveLikeText(
 
 private fun likeClick(
     accountViewModel: AccountViewModel,
+    baseNote: Note,
     onMultipleChoices: () -> Unit,
     onWantsToSignReaction: () -> Unit,
 ) {
+    if (baseNote.isDraft()) {
+        accountViewModel.toast(
+            R.string.draft_note,
+            R.string.it_s_not_possible_to_react_to_a_draft_note,
+        )
+        return
+    }
     if (accountViewModel.account.reactionChoices.isEmpty()) {
         accountViewModel.toast(
             R.string.no_reactions_setup,
@@ -918,7 +942,7 @@ fun ZapReaction(
     var wantsToZap by remember { mutableStateOf(false) }
     var wantsToChangeZapAmount by remember { mutableStateOf(false) }
     var wantsToSetCustomZap by remember { mutableStateOf(false) }
-    var showErrorMessageDialog by remember { mutableStateOf<String?>(null) }
+    var showErrorMessageDialog by remember { mutableStateOf<List<String>>(emptyList()) }
     var wantsToPay by
         remember(baseNote) {
             mutableStateOf<ImmutableList<ZapPaymentHandler.Payable>>(
@@ -948,7 +972,7 @@ fun ZapReaction(
                         onError = { _, message ->
                             scope.launch {
                                 zappingProgress = 0f
-                                showErrorMessageDialog = message
+                                showErrorMessageDialog = showErrorMessageDialog + message
                             }
                         },
                         onPayViaIntent = { wantsToPay = it },
@@ -974,7 +998,7 @@ fun ZapReaction(
                 onError = { _, message ->
                     scope.launch {
                         zappingProgress = 0f
-                        showErrorMessageDialog = message
+                        showErrorMessageDialog = showErrorMessageDialog + message
                     }
                 },
                 onProgress = { scope.launch(Dispatchers.Main) { zappingProgress = it } },
@@ -982,19 +1006,20 @@ fun ZapReaction(
             )
         }
 
-        if (showErrorMessageDialog != null) {
+        if (showErrorMessageDialog.isNotEmpty()) {
+            val msg = showErrorMessageDialog.joinToString("\n")
             ErrorMessageDialog(
                 title = stringResource(id = R.string.error_dialog_zap_error),
-                textContent = showErrorMessageDialog ?: "",
+                textContent = msg,
                 onClickStartMessage = {
                     baseNote.author?.let {
                         scope.launch(Dispatchers.IO) {
-                            val route = routeToMessage(it, showErrorMessageDialog, accountViewModel)
+                            val route = routeToMessage(it, msg, accountViewModel)
                             nav(route)
                         }
                     }
                 },
-                onDismiss = { showErrorMessageDialog = null },
+                onDismiss = { showErrorMessageDialog = emptyList() },
             )
         }
 
@@ -1014,7 +1039,7 @@ fun ZapReaction(
                     wantsToPay = persistentListOf()
                     scope.launch {
                         zappingProgress = 0f
-                        showErrorMessageDialog = it
+                        showErrorMessageDialog = showErrorMessageDialog + it
                     }
                 },
             )
@@ -1026,7 +1051,7 @@ fun ZapReaction(
                 onError = { _, message ->
                     scope.launch {
                         zappingProgress = 0f
-                        showErrorMessageDialog = message
+                        showErrorMessageDialog = showErrorMessageDialog + message
                     }
                 },
                 onProgress = { scope.launch(Dispatchers.Main) { zappingProgress = it } },
@@ -1080,6 +1105,14 @@ fun zapClick(
     onError: (String, String) -> Unit,
     onPayViaIntent: (ImmutableList<ZapPaymentHandler.Payable>) -> Unit,
 ) {
+    if (baseNote.isDraft()) {
+        accountViewModel.toast(
+            R.string.draft_note,
+            R.string.it_s_not_possible_to_zap_to_a_draft_note,
+        )
+        return
+    }
+
     if (accountViewModel.account.zapAmountChoices.isEmpty()) {
         accountViewModel.toast(
             context.getString(R.string.error_dialog_zap_error),
@@ -1119,9 +1152,11 @@ fun ObserveZapIcon(
         val zapsState by baseNote.live().zaps.observeAsState()
 
         LaunchedEffect(key1 = zapsState) {
-            accountViewModel.calculateIfNoteWasZappedByAccount(baseNote) { newWasZapped ->
-                if (wasZappedByLoggedInUser.value != newWasZapped) {
-                    wasZappedByLoggedInUser.value = newWasZapped
+            if (zapsState?.note?.zapPayments?.isNotEmpty() == true || zapsState?.note?.zaps?.isNotEmpty() == true) {
+                accountViewModel.calculateIfNoteWasZappedByAccount(baseNote) { newWasZapped ->
+                    if (wasZappedByLoggedInUser.value != newWasZapped) {
+                        wasZappedByLoggedInUser.value = newWasZapped
+                    }
                 }
             }
         }
@@ -1134,20 +1169,26 @@ fun ObserveZapIcon(
 fun ObserveZapAmountText(
     baseNote: Note,
     accountViewModel: AccountViewModel,
-    inner: @Composable (MutableState<String>) -> Unit,
+    inner: @Composable (String) -> Unit,
 ) {
-    val zapAmountTxt = remember(baseNote) { mutableStateOf(showAmount(baseNote.zapsAmount)) }
     val zapsState by baseNote.live().zaps.observeAsState()
 
-    LaunchedEffect(key1 = zapsState) {
-        accountViewModel.calculateZapAmount(baseNote) { newZapAmount ->
-            if (zapAmountTxt.value != newZapAmount) {
-                zapAmountTxt.value = newZapAmount
+    if (zapsState?.note?.zapPayments?.isNotEmpty() == true) {
+        val zapAmountTxt by
+            produceState(initialValue = showAmount(baseNote.zapsAmount), key1 = zapsState) {
+                zapsState?.note?.let {
+                    accountViewModel.calculateZapAmount(it) { newZapAmount ->
+                        if (value != newZapAmount) {
+                            value = newZapAmount
+                        }
+                    }
+                }
             }
-        }
-    }
 
-    inner(zapAmountTxt)
+        inner(zapAmountTxt)
+    } else {
+        inner(showAmount(zapsState?.note?.zapsAmount))
+    }
 }
 
 @Composable

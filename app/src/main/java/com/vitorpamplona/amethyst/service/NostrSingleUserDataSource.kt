@@ -21,8 +21,8 @@
 package com.vitorpamplona.amethyst.service
 
 import com.vitorpamplona.amethyst.model.User
-import com.vitorpamplona.amethyst.service.relays.COMMON_FEED_TYPES
 import com.vitorpamplona.amethyst.service.relays.EOSETime
+import com.vitorpamplona.amethyst.service.relays.EVENT_FINDER_TYPES
 import com.vitorpamplona.amethyst.service.relays.JsonFilter
 import com.vitorpamplona.amethyst.service.relays.TypedFilter
 import com.vitorpamplona.quartz.events.MetadataEvent
@@ -35,13 +35,13 @@ object NostrSingleUserDataSource : NostrDataSource("SingleUserFeed") {
     fun createUserMetadataFilter(): List<TypedFilter>? {
         if (usersToWatch.isEmpty()) return null
 
-        val firstTimers = usersToWatch.filter { it.info?.latestMetadata == null }.map { it.pubkeyHex }
+        val firstTimers = usersToWatch.filter { it.latestMetadata == null }.map { it.pubkeyHex }
 
         if (firstTimers.isEmpty()) return null
 
         return listOf(
             TypedFilter(
-                types = COMMON_FEED_TYPES,
+                types = EVENT_FINDER_TYPES,
                 filter =
                     JsonFilter(
                         kinds = listOf(MetadataEvent.KIND),
@@ -54,7 +54,7 @@ object NostrSingleUserDataSource : NostrDataSource("SingleUserFeed") {
     fun createUserMetadataStatusReportFilter(): List<TypedFilter>? {
         if (usersToWatch.isEmpty()) return null
 
-        val secondTimers = usersToWatch.filter { it.info?.latestMetadata != null }
+        val secondTimers = usersToWatch.filter { it.latestMetadata != null }
 
         if (secondTimers.isEmpty()) return null
 
@@ -64,7 +64,7 @@ object NostrSingleUserDataSource : NostrDataSource("SingleUserFeed") {
                 val minEOSEs = findMinimumEOSEsForUsers(group)
                 listOf(
                     TypedFilter(
-                        types = COMMON_FEED_TYPES,
+                        types = EVENT_FINDER_TYPES,
                         filter =
                             JsonFilter(
                                 kinds = listOf(MetadataEvent.KIND, StatusEvent.KIND),
@@ -73,7 +73,7 @@ object NostrSingleUserDataSource : NostrDataSource("SingleUserFeed") {
                             ),
                     ),
                     TypedFilter(
-                        types = COMMON_FEED_TYPES,
+                        types = EVENT_FINDER_TYPES,
                         filter =
                             JsonFilter(
                                 kinds = listOf(ReportEvent.KIND),
@@ -91,7 +91,7 @@ object NostrSingleUserDataSource : NostrDataSource("SingleUserFeed") {
             checkNotInMainThread()
 
             usersToWatch.forEach {
-                if (it.info?.latestMetadata != null) {
+                if (it.latestMetadata != null) {
                     val eose = it.latestEOSEs[relayUrl]
                     if (eose == null) {
                         it.latestEOSEs = it.latestEOSEs + Pair(relayUrl, EOSETime(time))

@@ -159,7 +159,10 @@ fun DrawerContent(
             )
 
             ListContent(
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier =
+                    Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
                 drawerState,
                 openSheet,
                 accountViewModel,
@@ -189,7 +192,7 @@ fun ProfileContent(
         profilePubHex = baseAccountUser.pubkeyHex,
         profileBanner = userInfo?.banner,
         profilePicture = userInfo?.profilePicture(),
-        bestDisplayName = userInfo?.bestDisplayName(),
+        bestDisplayName = userInfo?.bestName(),
         tags = userInfo?.tags,
         modifier = modifier,
         accountViewModel = accountViewModel,
@@ -231,7 +234,8 @@ fun ProfileContentTemplate(
                 model = profilePicture,
                 contentDescription = stringResource(id = R.string.profile_image),
                 modifier =
-                    Modifier.width(100.dp)
+                    Modifier
+                        .width(100.dp)
                         .height(100.dp)
                         .clip(shape = CircleShape)
                         .border(3.dp, MaterialTheme.colorScheme.background, CircleShape)
@@ -244,7 +248,10 @@ fun ProfileContentTemplate(
                 CreateTextWithEmoji(
                     text = bestDisplayName,
                     tags = tags,
-                    modifier = Modifier.padding(top = 7.dp).clickable(onClick = onClick),
+                    modifier =
+                        Modifier
+                            .padding(top = 7.dp)
+                            .clickable(onClick = onClick),
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
                     maxLines = 1,
@@ -455,7 +462,10 @@ fun ListContent(
     val context = LocalContext.current
 
     Column(
-        modifier = modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
+        modifier =
+            modifier
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState()),
     ) {
         NavigationRow(
             title = stringResource(R.string.profile),
@@ -473,6 +483,15 @@ fun ListContent(
             nav = nav,
             drawerState = drawerState,
             route = Route.Bookmarks.route,
+        )
+
+        NavigationRow(
+            title = stringResource(R.string.drafts),
+            icon = Route.Drafts.icon,
+            tint = MaterialTheme.colorScheme.onBackground,
+            nav = nav,
+            drawerState = drawerState,
+            route = Route.Drafts.route,
         )
 
         IconRowRelays(
@@ -666,7 +685,8 @@ fun IconRow(
 ) {
     Row(
         modifier =
-            Modifier.fillMaxWidth()
+            Modifier
+                .fillMaxWidth()
                 .combinedClickable(
                     onClick = onClick,
                     onLongClick = onLongClick,
@@ -697,10 +717,16 @@ fun IconRowRelays(
     onClick: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() },
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .clickable { onClick() },
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 15.dp, horizontal = 25.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 15.dp, horizontal = 25.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
@@ -741,7 +767,10 @@ fun BottomContent(
             thickness = DividerThickness,
         )
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ClickableText(

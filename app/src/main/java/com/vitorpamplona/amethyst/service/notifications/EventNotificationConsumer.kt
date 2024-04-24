@@ -22,6 +22,7 @@ package com.vitorpamplona.amethyst.service.notifications
 
 import android.app.NotificationManager
 import android.content.Context
+import android.util.Log
 import androidx.core.content.ContextCompat
 import com.vitorpamplona.amethyst.LocalPreferences
 import com.vitorpamplona.amethyst.R
@@ -45,6 +46,7 @@ import java.math.BigDecimal
 
 class EventNotificationConsumer(private val applicationContext: Context) {
     suspend fun consume(event: GiftWrapEvent) {
+        Log.d("EventNotificationConsumer", "New Notification Arrived")
         if (!LocalCache.justVerify(event)) return
         if (!notificationManager().areNotificationsEnabled()) return
 
@@ -64,15 +66,26 @@ class EventNotificationConsumer(private val applicationContext: Context) {
         account: Account,
     ) {
         pushWrappedEvent.cachedGift(account.signer) { notificationEvent ->
-            LocalCache.justConsume(notificationEvent, null)
+            val consumed = LocalCache.hasConsumed(notificationEvent)
+            val verified = LocalCache.justVerify(notificationEvent)
+            Log.d("EventNotificationConsumer", "New Notification Arrived for ${account.userProfile().toBestDisplayName()} consumed= $consumed && verified= $verified")
+            if (!consumed && verified) {
+                Log.d("EventNotificationConsumer", "New Notification was verified")
+                unwrapAndConsume(notificationEvent, account) { innerEvent ->
 
-            unwrapAndConsume(notificationEvent, account) { innerEvent ->
-                if (innerEvent is PrivateDmEvent) {
-                    notify(innerEvent, account)
-                } else if (innerEvent is LnZapEvent) {
-                    notify(innerEvent, account)
-                } else if (innerEvent is ChatMessageEvent) {
-                    notify(innerEvent, account)
+                    Log.d("EventNotificationConsumer", "Unwrapped consume $consumed ${innerEvent.javaClass.simpleName}")
+                    if (!consumed) {
+                        if (innerEvent is PrivateDmEvent) {
+                            Log.d("EventNotificationConsumer", "New Nip-04 DM to Notify")
+                            notify(innerEvent, account)
+                        } else if (innerEvent is LnZapEvent) {
+                            Log.d("EventNotificationConsumer", "New Zap to Notify")
+                            notify(innerEvent, account)
+                        } else if (innerEvent is ChatMessageEvent) {
+                            Log.d("EventNotificationConsumer", "New ChatMessage to Notify")
+                            notify(innerEvent, account)
+                        }
+                    }
                 }
             }
         }
@@ -84,6 +97,7 @@ class EventNotificationConsumer(private val applicationContext: Context) {
         onReady: (Event) -> Unit,
     ) {
         if (!LocalCache.justVerify(event)) return
+        if (LocalCache.hasConsumed(event)) return
 
         when (event) {
             is GiftWrapEvent -> {
@@ -91,9 +105,11 @@ class EventNotificationConsumer(private val applicationContext: Context) {
             }
             is SealedGossipEvent -> {
                 event.cachedGossip(account.signer) {
-                    // this is not verifiable
-                    LocalCache.justConsume(it, null)
-                    onReady(it)
+                    if (!LocalCache.hasConsumed(it)) {
+                        // this is not verifiable
+                        LocalCache.justConsume(it, null)
+                        onReady(it)
+                    }
                 }
             }
             else -> {
@@ -108,7 +124,7 @@ class EventNotificationConsumer(private val applicationContext: Context) {
         acc: Account,
     ) {
         if (
-            event.createdAt > TimeUtils.fiveMinutesAgo() && // old event being re-broadcasted
+            event.createdAt > TimeUtils.fifteenMinutesAgo() && // old event being re-broadcasted
             event.pubKey != acc.userProfile().pubkeyHex
         ) { // from the user
 
@@ -148,7 +164,7 @@ class EventNotificationConsumer(private val applicationContext: Context) {
         val note = LocalCache.getNoteIfExists(event.id) ?: return
 
         // old event being re-broadcast
-        if (event.createdAt < TimeUtils.fiveMinutesAgo()) return
+        if (event.createdAt < TimeUtils.fifteenMinutesAgo()) return
 
         if (acc.userProfile().pubkeyHex == event.verifiedRecipientPubKey()) {
             val followingKeySet = acc.followingKeySet()
@@ -187,7 +203,7 @@ class EventNotificationConsumer(private val applicationContext: Context) {
         val noteZapEvent = LocalCache.getNoteIfExists(event.id) ?: return
 
         // old event being re-broadcast
-        if (event.createdAt < TimeUtils.fiveMinutesAgo()) return
+        if (event.createdAt < TimeUtils.fifteenMinutesAgo()) return
 
         val noteZapRequest = event.zapRequest?.id?.let { LocalCache.checkGetOrCreateNote(it) } ?: return
         val noteZapped =
@@ -195,7 +211,7 @@ class EventNotificationConsumer(private val applicationContext: Context) {
 
         if ((event.amount ?: BigDecimal.ZERO) < BigDecimal.TEN) return
 
-        if (acc.userProfile().pubkeyHex == event.zappedAuthor().firstOrNull()) {
+        if (event.isTaggedUser(acc.userProfile().pubkeyHex)) {
             val amount = showAmount(event.amount)
             (noteZapRequest.event as? LnZapRequestEvent)?.let { event ->
                 acc.decryptZapContentAuthor(noteZapRequest) {

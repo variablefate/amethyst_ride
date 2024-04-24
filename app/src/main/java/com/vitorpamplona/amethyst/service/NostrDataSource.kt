@@ -26,6 +26,7 @@ import com.vitorpamplona.amethyst.service.relays.Client
 import com.vitorpamplona.amethyst.service.relays.Relay
 import com.vitorpamplona.amethyst.service.relays.Subscription
 import com.vitorpamplona.amethyst.ui.components.BundledUpdate
+import com.vitorpamplona.quartz.events.AddressableEvent
 import com.vitorpamplona.quartz.events.Event
 import com.vitorpamplona.quartz.utils.TimeUtils
 import kotlinx.coroutines.CoroutineScope
@@ -42,9 +43,9 @@ abstract class NostrDataSource(val debugName: String) {
 
     private var subscriptions = mapOf<String, Subscription>()
 
-    data class Counter(var counter: Int)
+    data class Counter(val subscriptionId: String, val eventKind: Int, var counter: Int)
 
-    private var eventCounter = mapOf<String, Counter>()
+    private var eventCounter = mapOf<Int, Counter>()
     var changingFilters = AtomicBoolean()
 
     private var active: Boolean = false
@@ -53,9 +54,16 @@ abstract class NostrDataSource(val debugName: String) {
         eventCounter.forEach {
             Log.d(
                 "STATE DUMP ${this.javaClass.simpleName}",
-                "Received Events ${it.key}: ${it.value.counter}",
+                "Received Events $debugName ${it.value.subscriptionId} ${it.value.eventKind}: ${it.value.counter}",
             )
         }
+    }
+
+    fun hashCodeFields(
+        str1: String,
+        str2: Int,
+    ): Int {
+        return 31 * str1.hashCode() + str2.hashCode()
     }
 
     private val clientListener =
@@ -67,12 +75,12 @@ abstract class NostrDataSource(val debugName: String) {
                 afterEOSE: Boolean,
             ) {
                 if (subscriptions.containsKey(subscriptionId)) {
-                    val key = "$debugName $subscriptionId ${event.kind}"
-                    val keyValue = eventCounter.get(key)
+                    val key = hashCodeFields(subscriptionId, event.kind)
+                    val keyValue = eventCounter[key]
                     if (keyValue != null) {
                         keyValue.counter++
                     } else {
-                        eventCounter = eventCounter + Pair(key, Counter(1))
+                        eventCounter = eventCounter + Pair(key, Counter(subscriptionId, event.kind, 1))
                     }
 
                     // Log.d(this@NostrDataSource.javaClass.simpleName, "Relay ${relay.url}: ${event.kind}")
@@ -293,7 +301,13 @@ abstract class NostrDataSource(val debugName: String) {
         eventId: String,
         relay: Relay,
     ) {
-        LocalCache.getNoteIfExists(eventId)?.addRelay(relay)
+        val note = LocalCache.getNoteIfExists(eventId)
+        val noteEvent = note?.event
+        if (noteEvent is AddressableEvent) {
+            LocalCache.getAddressableNoteIfExists(noteEvent.address().toTag())?.addRelay(relay)
+        } else {
+            note?.addRelay(relay)
+        }
     }
 
     open fun markAsEOSE(

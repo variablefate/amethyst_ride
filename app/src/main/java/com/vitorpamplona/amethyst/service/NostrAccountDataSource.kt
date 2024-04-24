@@ -40,6 +40,8 @@ import com.vitorpamplona.quartz.events.CalendarRSVPEvent
 import com.vitorpamplona.quartz.events.CalendarTimeSlotEvent
 import com.vitorpamplona.quartz.events.ChannelMessageEvent
 import com.vitorpamplona.quartz.events.ContactListEvent
+import com.vitorpamplona.quartz.events.DirectMessageRelayListEvent
+import com.vitorpamplona.quartz.events.DraftEvent
 import com.vitorpamplona.quartz.events.EmojiPackSelectionEvent
 import com.vitorpamplona.quartz.events.Event
 import com.vitorpamplona.quartz.events.EventInterface
@@ -100,7 +102,7 @@ object NostrAccountDataSource : NostrDataSource("AccountData") {
             types = COMMON_FEED_TYPES,
             filter =
                 JsonFilter(
-                    kinds = listOf(AdvertisedRelayListEvent.KIND, StatusEvent.KIND),
+                    kinds = listOf(StatusEvent.KIND, AdvertisedRelayListEvent.KIND, DirectMessageRelayListEvent.KIND),
                     authors = listOf(account.userProfile().pubkeyHex),
                     limit = 5,
                 ),
@@ -118,6 +120,7 @@ object NostrAccountDataSource : NostrDataSource("AccountData") {
                             MetadataEvent.KIND,
                             ContactListEvent.KIND,
                             AdvertisedRelayListEvent.KIND,
+                            DirectMessageRelayListEvent.KIND,
                             MuteListEvent.KIND,
                             PeopleListEvent.KIND,
                         ),
@@ -144,7 +147,7 @@ object NostrAccountDataSource : NostrDataSource("AccountData") {
             types = COMMON_FEED_TYPES,
             filter =
                 JsonFilter(
-                    kinds = listOf(ReportEvent.KIND),
+                    kinds = listOf(DraftEvent.KIND, ReportEvent.KIND),
                     authors = listOf(account.userProfile().pubkeyHex),
                     since =
                         latestEOSEs.users[account.userProfile()]
@@ -262,22 +265,80 @@ object NostrAccountDataSource : NostrDataSource("AccountData") {
         checkNotInMainThread()
 
         if (LocalCache.justVerify(event)) {
-            if (event is GiftWrapEvent) {
-                // Avoid decrypting over and over again if the event already exist.
-                val note = LocalCache.getNoteIfExists(event.id)
-                if (note != null && relay.brief in note.relays) return
+            when (event) {
+                is DraftEvent -> {
+                    // Avoid decrypting over and over again if the event already exist.
 
-                event.cachedGift(account.signer) { this.consume(it, relay) }
-            }
+                    if (!event.isDeleted()) {
+                        val note = LocalCache.getAddressableNoteIfExists(event.addressTag())
+                        val noteEvent = note?.event
+                        if (noteEvent != null) {
+                            if (event.createdAt > noteEvent.createdAt() || relay.brief !in note.relays) {
+                                LocalCache.consume(event, relay)
+                            }
+                        } else {
+                            // decrypts
+                            event.cachedDraft(account.signer) {}
 
-            if (event is SealedGossipEvent) {
-                // Avoid decrypting over and over again if the event already exist.
-                val note = LocalCache.getNoteIfExists(event.id)
-                if (note != null && relay.brief in note.relays) return
+                            LocalCache.justConsume(event, relay)
+                        }
+                    }
+                }
 
-                event.cachedGossip(account.signer) { LocalCache.justConsume(it, relay) }
-            } else {
-                LocalCache.justConsume(event, relay)
+                is GiftWrapEvent -> {
+                    // Avoid decrypting over and over again if the event already exist.
+                    val note = LocalCache.getNoteIfExists(event.id)
+                    val noteEvent = note?.event as? GiftWrapEvent
+                    if (noteEvent != null) {
+                        if (relay.brief !in note.relays) {
+                            LocalCache.justConsume(noteEvent, relay)
+                            noteEvent.cachedGift(account.signer) {
+                                this.consume(it, relay)
+                            }
+                        }
+                    } else {
+                        // new event
+                        event.cachedGift(account.signer) { this.consume(it, relay) }
+                        LocalCache.justConsume(event, relay)
+                    }
+                }
+
+                is SealedGossipEvent -> {
+                    // Avoid decrypting over and over again if the event already exist.
+                    val note = LocalCache.getNoteIfExists(event.id)
+                    val noteEvent = note?.event as? SealedGossipEvent
+                    if (noteEvent != null) {
+                        if (relay.brief !in note.relays) {
+                            // adds the relay to seal and inner chat
+                            LocalCache.consume(noteEvent, relay)
+                            noteEvent.cachedGossip(account.signer) {
+                                LocalCache.justConsume(it, relay)
+                            }
+                        }
+                    } else {
+                        // new event
+                        event.cachedGossip(account.signer) { LocalCache.justConsume(it, relay) }
+                        LocalCache.justConsume(event, relay)
+                    }
+                }
+
+                is LnZapEvent -> {
+                    // Avoid decrypting over and over again if the event already exist.
+                    val note = LocalCache.getNoteIfExists(event.id)
+                    if (note?.event == null) {
+                        event.zapRequest?.let {
+                            if (it.isPrivateZap()) {
+                                it.decryptPrivateZap(account.signer) {}
+                            }
+                        }
+
+                        LocalCache.justConsume(event, relay)
+                    }
+                }
+
+                else -> {
+                    LocalCache.justConsume(event, relay)
+                }
             }
         }
     }

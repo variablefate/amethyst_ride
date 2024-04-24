@@ -27,9 +27,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import com.vitorpamplona.amethyst.commons.MediaUrlImage
-import com.vitorpamplona.amethyst.commons.MediaUrlVideo
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlImage
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlVideo
 import com.vitorpamplona.amethyst.model.UrlCachedPreviewer
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.theme.HalfVertPadding
@@ -62,30 +61,39 @@ fun LoadUrlPreview(
         ) { state ->
             when (state) {
                 is UrlPreviewState.Loaded -> {
-                    if (state.previewInfo.mimeType.type == "image") {
-                        Box(modifier = HalfVertPadding) {
-                            ZoomableContentView(
-                                content = MediaUrlImage(url),
-                                roundedCorner = true,
-                                accountViewModel = accountViewModel,
-                            )
-                        }
-                    } else if (state.previewInfo.mimeType.type == "video") {
-                        Box(modifier = HalfVertPadding) {
-                            ZoomableContentView(
-                                content = MediaUrlVideo(url),
-                                roundedCorner = true,
-                                accountViewModel = accountViewModel,
-                            )
-                        }
-                    } else {
-                        UrlPreviewCard(url, state.previewInfo)
-                    }
+                    RenderLoaded(state, url, accountViewModel)
                 }
                 else -> {
                     ClickableUrl(urlText, url)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun RenderLoaded(
+    state: UrlPreviewState.Loaded,
+    url: String,
+    accountViewModel: AccountViewModel,
+) {
+    if (state.previewInfo.mimeType.type == "image") {
+        Box(modifier = HalfVertPadding) {
+            ZoomableContentView(
+                content = MediaUrlImage(url),
+                roundedCorner = true,
+                accountViewModel = accountViewModel,
+            )
+        }
+    } else if (state.previewInfo.mimeType.type == "video") {
+        Box(modifier = HalfVertPadding) {
+            ZoomableContentView(
+                content = MediaUrlVideo(url),
+                roundedCorner = true,
+                accountViewModel = accountViewModel,
+            )
+        }
+    } else {
+        UrlPreviewCard(url, state.previewInfo)
     }
 }

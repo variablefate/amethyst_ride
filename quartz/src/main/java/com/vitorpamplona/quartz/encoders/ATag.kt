@@ -25,7 +25,7 @@ import androidx.compose.runtime.Immutable
 
 @Immutable
 data class ATag(val kind: Int, val pubKeyHex: String, val dTag: String, val relay: String?) {
-    fun toTag() = "$kind:$pubKeyHex:$dTag"
+    fun toTag() = assembleATag(kind, pubKeyHex, dTag)
 
     fun toNAddr(): String {
         return TlvBuilder()
@@ -40,6 +40,12 @@ data class ATag(val kind: Int, val pubKeyHex: String, val dTag: String, val rela
     }
 
     companion object {
+        fun assembleATag(
+            kind: Int,
+            pubKeyHex: String,
+            dTag: String,
+        ) = "$kind:$pubKeyHex:$dTag"
+
         fun isATag(key: String): Boolean {
             return key.startsWith("naddr1") || key.contains(":")
         }
@@ -65,6 +71,15 @@ data class ATag(val kind: Int, val pubKeyHex: String, val dTag: String, val rela
                 ATag(parts[0].toInt(), parts[1], parts[2], relay)
             } catch (t: Throwable) {
                 Log.w("ATag", "Error parsing A Tag: $atag: ${t.message}")
+                null
+            }
+        }
+
+        fun parseAtagUnckecked(atag: String): ATag? {
+            return try {
+                val parts = atag.split(":")
+                ATag(parts[0].toInt(), parts[1], parts[2], null)
+            } catch (t: Throwable) {
                 null
             }
         }

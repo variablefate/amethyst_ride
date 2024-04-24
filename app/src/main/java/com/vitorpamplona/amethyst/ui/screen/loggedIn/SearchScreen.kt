@@ -36,7 +36,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -87,6 +86,7 @@ import com.vitorpamplona.amethyst.ui.note.UsernameDisplay
 import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.FeedPadding
 import com.vitorpamplona.amethyst.ui.theme.Size20Modifier
+import com.vitorpamplona.amethyst.ui.theme.StdTopPadding
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.events.findHashtags
 import kotlinx.coroutines.Dispatchers
@@ -290,7 +290,6 @@ private fun SearchBar(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchTextField(
     searchBarViewModel: SearchBarViewModel,
@@ -375,6 +374,11 @@ private fun DisplaySearchResults(
             key = { _, item -> "#$item" },
         ) { _, item ->
             HashtagLine(item) { nav("Hashtag/$item") }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(top = 10.dp),
+                thickness = DividerThickness,
+            )
         }
 
         itemsIndexed(
@@ -382,6 +386,10 @@ private fun DisplaySearchResults(
             key = { _, item -> "u" + item.pubkeyHex },
         ) { _, item ->
             UserCompose(item, accountViewModel = accountViewModel, nav = nav)
+
+            HorizontalDivider(
+                thickness = DividerThickness,
+            )
         }
 
         itemsIndexed(
@@ -403,6 +411,11 @@ private fun DisplaySearchResults(
                 loadProfilePicture = automaticallyShowProfilePicture,
                 onClick = { nav("Channel/${item.idHex}") },
             )
+
+            HorizontalDivider(
+                modifier = StdTopPadding,
+                thickness = DividerThickness,
+            )
         }
 
         itemsIndexed(
@@ -411,8 +424,13 @@ private fun DisplaySearchResults(
         ) { _, item ->
             NoteCompose(
                 item,
+                quotesLeft = 1,
                 accountViewModel = accountViewModel,
                 nav = nav,
+            )
+
+            HorizontalDivider(
+                thickness = DividerThickness,
             )
         }
     }
@@ -423,33 +441,24 @@ fun HashtagLine(
     tag: String,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    Row(
+        modifier =
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(
+                start = 12.dp,
+                end = 12.dp,
+                top = 10.dp,
+            ),
     ) {
         Row(
-            modifier =
-                Modifier.padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 10.dp,
-                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(
-                    "Search hashtag: #$tag",
-                    fontWeight = FontWeight.Bold,
-                )
-            }
+            Text(
+                "Search hashtag: #$tag",
+                fontWeight = FontWeight.Bold,
+            )
         }
-
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 10.dp),
-            thickness = DividerThickness,
-        )
     }
 }
 
@@ -459,31 +468,23 @@ fun UserLine(
     accountViewModel: AccountViewModel,
     onClick: () -> Unit,
 ) {
-    Column(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+    Row(
+        modifier =
+            Modifier.fillMaxWidth().clickable(onClick = onClick).padding(
+                start = 12.dp,
+                end = 12.dp,
+                top = 10.dp,
+                bottom = 10.dp,
+            ),
     ) {
-        Row(
-            modifier =
-                Modifier.padding(
-                    start = 12.dp,
-                    end = 12.dp,
-                    top = 10.dp,
-                ),
+        ClickableUserPicture(baseUser, 55.dp, accountViewModel, Modifier, null)
+
+        Column(
+            modifier = Modifier.padding(start = 10.dp).weight(1f),
         ) {
-            ClickableUserPicture(baseUser, 55.dp, accountViewModel, Modifier, null)
+            Row(verticalAlignment = Alignment.CenterVertically) { UsernameDisplay(baseUser) }
 
-            Column(
-                modifier = Modifier.padding(start = 10.dp).weight(1f),
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) { UsernameDisplay(baseUser) }
-
-                AboutDisplay(baseUser)
-            }
+            AboutDisplay(baseUser)
         }
-
-        HorizontalDivider(
-            modifier = Modifier.padding(top = 10.dp),
-            thickness = DividerThickness,
-        )
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
@@ -35,8 +36,9 @@ import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.vitorpamplona.amethyst.ui.note.ChatroomHeaderCompose
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
+import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.FeedPadding
-import kotlin.time.ExperimentalTime
+import com.vitorpamplona.amethyst.ui.theme.StdTopPadding
 
 @Composable
 fun ChatroomListFeedView(
@@ -78,7 +80,6 @@ private fun CrossFadeState(
     }
 }
 
-@OptIn(ExperimentalTime::class)
 @Composable
 private fun FeedLoaded(
     state: FeedState.Loaded,
@@ -109,6 +110,11 @@ private fun FeedLoaded(
                     nav = nav,
                 )
             }
+
+            HorizontalDivider(
+                modifier = StdTopPadding,
+                thickness = DividerThickness,
+            )
         }
     }
 }

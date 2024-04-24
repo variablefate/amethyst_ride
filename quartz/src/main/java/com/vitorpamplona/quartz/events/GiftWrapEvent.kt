@@ -38,8 +38,17 @@ class GiftWrapEvent(
 ) : Event(id, pubKey, createdAt, KIND, tags, content, sig) {
     @Transient private var cachedInnerEvent: Map<HexKey, Event?> = mapOf()
 
+    override fun isContentEncoded() = true
+
     fun preCachedGift(signer: NostrSigner): Event? {
         return cachedInnerEvent[signer.pubKey]
+    }
+
+    fun addToCache(
+        pubKey: HexKey,
+        gift: Event,
+    ) {
+        cachedInnerEvent = cachedInnerEvent + Pair(pubKey, gift)
     }
 
     fun cachedGift(
@@ -54,7 +63,7 @@ class GiftWrapEvent(
             if (gift is WrappedEvent) {
                 gift.host = this
             }
-            cachedInnerEvent = cachedInnerEvent + Pair(signer.pubKey, gift)
+            addToCache(signer.pubKey, gift)
 
             onReady(gift)
         }
@@ -96,8 +105,8 @@ class GiftWrapEvent(
             val serializedContent = toJson(event)
             val tags = arrayOf(arrayOf("p", recipientPubKey))
 
-            signer.nip44Encrypt(serializedContent, recipientPubKey) {
-                signer.sign(createdAt, KIND, tags, it, onReady)
+            signer.nip44Encrypt(serializedContent, recipientPubKey) { content ->
+                signer.sign(createdAt, KIND, tags, content, onReady)
             }
         }
     }

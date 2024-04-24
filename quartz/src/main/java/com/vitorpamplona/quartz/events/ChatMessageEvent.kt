@@ -82,11 +82,12 @@ class ChatMessageEvent(
             signer: NostrSigner,
             createdAt: Long = TimeUtils.now(),
             nip94attachments: List<FileHeaderEvent>? = null,
+            isDraft: Boolean,
             onReady: (ChatMessageEvent) -> Unit,
         ) {
             val tags = mutableListOf<Array<String>>()
             to?.forEach { tags.add(arrayOf("p", it)) }
-            replyTos?.forEach { tags.add(arrayOf("e", it)) }
+            replyTos?.forEach { tags.add(arrayOf("e", it, "", "reply")) }
             mentions?.forEach { tags.add(arrayOf("p", it, "", "mention")) }
             zapReceiver?.forEach {
                 tags.add(arrayOf("zap", it.lnAddressOrPubKeyHex, it.relay ?: "", it.weight.toString()))
@@ -106,7 +107,11 @@ class ChatMessageEvent(
             }
             // tags.add(arrayOf("alt", alt))
 
-            signer.sign(createdAt, KIND, tags.toTypedArray(), msg, onReady)
+            if (isDraft) {
+                signer.assembleRumor(createdAt, KIND, tags.toTypedArray(), msg, onReady)
+            } else {
+                signer.sign(createdAt, KIND, tags.toTypedArray(), msg, onReady)
+            }
         }
     }
 }

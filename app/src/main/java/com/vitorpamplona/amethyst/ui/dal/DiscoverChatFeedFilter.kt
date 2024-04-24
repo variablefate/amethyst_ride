@@ -21,15 +21,13 @@
 package com.vitorpamplona.amethyst.ui.dal
 
 import com.vitorpamplona.amethyst.model.Account
-import com.vitorpamplona.amethyst.model.GLOBAL_FOLLOWS
 import com.vitorpamplona.amethyst.model.LocalCache
 import com.vitorpamplona.amethyst.model.Note
-import com.vitorpamplona.amethyst.model.ParticipantListBuilder
+import com.vitorpamplona.amethyst.model.PublicChatChannel
 import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.IsInPublicChatChannel
 import com.vitorpamplona.quartz.events.MuteListEvent
 import com.vitorpamplona.quartz.events.PeopleListEvent
-import com.vitorpamplona.quartz.utils.TimeUtils
 
 open class DiscoverChatFeedFilter(val account: Account) : AdditiveFeedFilter<Note>() {
     override fun feedKey(): String {
@@ -44,65 +42,81 @@ open class DiscoverChatFeedFilter(val account: Account) : AdditiveFeedFilter<Not
     }
 
     override fun feed(): List<Note> {
+        val params = buildFilterParams(account)
+
         val allChannelNotes =
-            LocalCache.channels.values.mapNotNull { LocalCache.getNoteIfExists(it.idHex) }
+            LocalCache.channels.mapNotNullIntoSet { _, channel ->
+                if (channel is PublicChatChannel) {
+                    val note = LocalCache.getNoteIfExists(channel.idHex)
+                    val noteEvent = note?.event
 
-        val notes = innerApplyFilter(allChannelNotes)
+                    if (noteEvent == null || params.match(noteEvent)) {
+                        note
+                    } else {
+                        null
+                    }
+                } else {
+                    null
+                }
+            }
 
-        return sort(notes)
+        return sort(allChannelNotes)
     }
 
     override fun applyFilter(collection: Set<Note>): Set<Note> {
         return innerApplyFilter(collection)
     }
 
+    fun buildFilterParams(account: Account): FilterByListParams {
+        return FilterByListParams.create(
+            userHex = account.userProfile().pubkeyHex,
+            selectedListName = account.defaultDiscoveryFollowList.value,
+            followLists = account.liveDiscoveryFollowLists.value,
+            hiddenUsers = account.flowHiddenUsers.value,
+        )
+    }
+
     protected open fun innerApplyFilter(collection: Collection<Note>): Set<Note> {
-        val now = TimeUtils.now()
-        val isGlobal = account.defaultDiscoveryFollowList.value == GLOBAL_FOLLOWS
-        val isHiddenList = showHiddenKey()
+        val params = buildFilterParams(account)
 
-        val followingKeySet = account.liveDiscoveryFollowLists.value?.users ?: emptySet()
-        val followingTagSet = account.liveDiscoveryFollowLists.value?.hashtags ?: emptySet()
-        val followingGeohashSet = account.liveDiscoveryFollowLists.value?.geotags ?: emptySet()
-
-        val createEvents = collection.filter { it.event is ChannelCreateEvent }
-        val anyOtherChannelEvent =
-            collection
-                .asSequence()
-                .filter { it.event is IsInPublicChatChannel }
-                .mapNotNull { (it.event as? IsInPublicChatChannel)?.channel() }
-                .mapNotNull { LocalCache.checkGetOrCreateNote(it) }
-                .toSet()
-
-        val activities =
-            (createEvents + anyOtherChannelEvent)
-                .asSequence()
-                // .filter { it.event is ChannelCreateEvent } // Event heads might not be loaded yet.
-                .filter {
-                    isGlobal ||
-                        it.author?.pubkeyHex in followingKeySet ||
-                        it.event?.isTaggedHashes(followingTagSet) == true ||
-                        it.event?.isTaggedGeoHashes(followingGeohashSet) == true
+        return collection.mapNotNullTo(HashSet()) { note ->
+            // note event here will never be null
+            val noteEvent = note.event
+            if (noteEvent is ChannelCreateEvent && params.match(noteEvent)) {
+                if ((LocalCache.getChannelIfExists(noteEvent.id)?.notes?.size() ?: 0) > 0) {
+                    note
+                } else {
+                    null
                 }
-                .filter { isHiddenList || it.author?.let { !account.isHidden(it.pubkeyHex) } ?: true }
-                .filter { (it.createdAt() ?: 0) <= now }
-                .toSet()
-
-        return activities
+            } else if (noteEvent is IsInPublicChatChannel) {
+                val channel = noteEvent.channel()?.let { LocalCache.checkGetOrCreateNote(it) }
+                if (channel != null &&
+                    (channel.event == null || (channel.event is ChannelCreateEvent && params.match(channel.event)))
+                ) {
+                    if ((LocalCache.getChannelIfExists(channel.idHex)?.notes?.size() ?: 0) > 0) {
+                        channel
+                    } else {
+                        null
+                    }
+                } else {
+                    null
+                }
+            } else {
+                null
+            }
+        }
     }
 
     override fun sort(collection: Set<Note>): List<Note> {
-        val followingKeySet =
-            account.liveDiscoveryFollowLists.value?.users ?: account.liveKind3Follows.value.users
-
-        val counter = ParticipantListBuilder()
-        val participantCounts =
-            collection.associate { it to counter.countFollowsThatParticipateOn(it, followingKeySet) }
+        val lastNote =
+            collection.associateWith { note ->
+                LocalCache.getChannelIfExists(note.idHex)?.lastNoteCreatedAt ?: 0
+            }
 
         return collection
             .sortedWith(
                 compareBy(
-                    { participantCounts[it] },
+                    { lastNote[it] },
                     { it.createdAt() },
                     { it.idHex },
                 ),

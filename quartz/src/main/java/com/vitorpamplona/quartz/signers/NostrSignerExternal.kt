@@ -21,10 +21,9 @@
 package com.vitorpamplona.quartz.signers
 
 import android.util.Log
+import com.goterl.lazysodium.BuildConfig
 import com.vitorpamplona.quartz.encoders.HexKey
-import com.vitorpamplona.quartz.encoders.hexToByteArray
 import com.vitorpamplona.quartz.encoders.toHexKey
-import com.vitorpamplona.quartz.encoders.toNpub
 import com.vitorpamplona.quartz.events.Event
 import com.vitorpamplona.quartz.events.EventFactory
 import com.vitorpamplona.quartz.events.LnZapPrivateEvent
@@ -32,7 +31,7 @@ import com.vitorpamplona.quartz.events.LnZapRequestEvent
 
 class NostrSignerExternal(
     pubKey: HexKey,
-    val launcher: ExternalSignerLauncher = ExternalSignerLauncher(pubKey.hexToByteArray().toNpub()),
+    val launcher: ExternalSignerLauncher,
 ) : NostrSigner(pubKey) {
     override fun <T : Event> sign(
         createdAt: Long,
@@ -78,7 +77,7 @@ class NostrSignerExternal(
                         event.kind,
                         event.tags,
                         event.content,
-                        signature,
+                        signature.split("-")[0],
                     ) as? T?
                 )
                     ?.let { onReady(it) }
@@ -91,9 +90,11 @@ class NostrSignerExternal(
         toPublicKey: HexKey,
         onReady: (String) -> Unit,
     ) {
-        Log.d("NostrExternalSigner", "Encrypt NIP04 Event: $decryptedContent")
+        if (BuildConfig.DEBUG) {
+            Log.d("NostrExternalSigner", "Encrypt NIP04 Event: $decryptedContent")
+        }
 
-        return launcher.encrypt(
+        launcher.encrypt(
             decryptedContent,
             toPublicKey,
             SignerType.NIP04_ENCRYPT,
@@ -106,9 +107,11 @@ class NostrSignerExternal(
         fromPublicKey: HexKey,
         onReady: (String) -> Unit,
     ) {
-        Log.d("NostrExternalSigner", "Decrypt NIP04 Event: $encryptedContent")
+        if (BuildConfig.DEBUG) {
+            Log.d("NostrExternalSigner", "Decrypt NIP04 Event: $encryptedContent")
+        }
 
-        return launcher.decrypt(
+        launcher.decrypt(
             encryptedContent,
             fromPublicKey,
             SignerType.NIP04_DECRYPT,
@@ -121,9 +124,11 @@ class NostrSignerExternal(
         toPublicKey: HexKey,
         onReady: (String) -> Unit,
     ) {
-        Log.d("NostrExternalSigner", "Encrypt NIP44 Event: $decryptedContent")
+        if (BuildConfig.DEBUG) {
+            Log.d("NostrExternalSigner", "Encrypt NIP44 Event: $decryptedContent")
+        }
 
-        return launcher.encrypt(
+        launcher.encrypt(
             decryptedContent,
             toPublicKey,
             SignerType.NIP44_ENCRYPT,
@@ -136,9 +141,11 @@ class NostrSignerExternal(
         fromPublicKey: HexKey,
         onReady: (String) -> Unit,
     ) {
-        Log.d("NostrExternalSigner", "Decrypt NIP44 Event: $encryptedContent")
+        if (BuildConfig.DEBUG) {
+            Log.d("NostrExternalSigner", "Decrypt NIP44 Event: $encryptedContent")
+        }
 
-        return launcher.decrypt(
+        launcher.decrypt(
             encryptedContent,
             fromPublicKey,
             SignerType.NIP44_DECRYPT,
@@ -150,7 +157,7 @@ class NostrSignerExternal(
         event: LnZapRequestEvent,
         onReady: (LnZapPrivateEvent) -> Unit,
     ) {
-        return launcher.decryptZapEvent(event) { jsonEvent ->
+        launcher.decryptZapEvent(event) { jsonEvent ->
             try {
                 (Event.fromJson(jsonEvent) as? LnZapPrivateEvent)?.let { onReady(it) }
             } catch (e: Exception) {

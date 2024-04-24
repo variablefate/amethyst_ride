@@ -23,11 +23,12 @@ package com.vitorpamplona.amethyst.service
 import com.vitorpamplona.amethyst.model.AddressableNote
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.model.User
-import com.vitorpamplona.amethyst.service.relays.COMMON_FEED_TYPES
 import com.vitorpamplona.amethyst.service.relays.EOSETime
+import com.vitorpamplona.amethyst.service.relays.EVENT_FINDER_TYPES
 import com.vitorpamplona.amethyst.service.relays.JsonFilter
 import com.vitorpamplona.amethyst.service.relays.TypedFilter
 import com.vitorpamplona.quartz.events.CommunityPostApprovalEvent
+import com.vitorpamplona.quartz.events.DeletionEvent
 import com.vitorpamplona.quartz.events.GenericRepostEvent
 import com.vitorpamplona.quartz.events.GitReplyEvent
 import com.vitorpamplona.quartz.events.LiveActivitiesChatMessageEvent
@@ -57,29 +58,45 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
         }
 
         return groupByEOSEPresence(addressesToWatch).map {
-            TypedFilter(
-                types = COMMON_FEED_TYPES,
-                filter =
-                    JsonFilter(
-                        kinds =
-                            listOf(
-                                TextNoteEvent.KIND,
-                                ReactionEvent.KIND,
-                                RepostEvent.KIND,
-                                GenericRepostEvent.KIND,
-                                ReportEvent.KIND,
-                                LnZapEvent.KIND,
-                                PollNoteEvent.KIND,
-                                CommunityPostApprovalEvent.KIND,
-                                LiveActivitiesChatMessageEvent.KIND,
-                            ),
-                        tags = mapOf("a" to it.mapNotNull { it.address()?.toTag() }),
-                        since = findMinimumEOSEs(it),
-                        // Max amount of "replies" to download on a specific event.
-                        limit = 1000,
-                    ),
+            listOf(
+                TypedFilter(
+                    types = EVENT_FINDER_TYPES,
+                    filter =
+                        JsonFilter(
+                            kinds =
+                                listOf(
+                                    TextNoteEvent.KIND,
+                                    ReactionEvent.KIND,
+                                    RepostEvent.KIND,
+                                    GenericRepostEvent.KIND,
+                                    ReportEvent.KIND,
+                                    LnZapEvent.KIND,
+                                    PollNoteEvent.KIND,
+                                    CommunityPostApprovalEvent.KIND,
+                                    LiveActivitiesChatMessageEvent.KIND,
+                                ),
+                            tags = mapOf("a" to it.mapNotNull { it.address()?.toTag() }),
+                            since = findMinimumEOSEs(it),
+                            // Max amount of "replies" to download on a specific event.
+                            limit = 1000,
+                        ),
+                ),
+                TypedFilter(
+                    types = EVENT_FINDER_TYPES,
+                    filter =
+                        JsonFilter(
+                            kinds =
+                                listOf(
+                                    DeletionEvent.KIND,
+                                ),
+                            tags = mapOf("a" to it.mapNotNull { it.address()?.toTag() }),
+                            since = findMinimumEOSEs(it),
+                            // Max amount of "replies" to download on a specific event.
+                            limit = 10,
+                        ),
+                ),
             )
-        }
+        }.flatten()
     }
 
     private fun createAddressFilter(): List<TypedFilter>? {
@@ -93,7 +110,7 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
             it.address()?.let { aTag ->
                 if (aTag.kind < 25000 && aTag.dTag.isBlank()) {
                     TypedFilter(
-                        types = COMMON_FEED_TYPES,
+                        types = EVENT_FINDER_TYPES,
                         filter =
                             JsonFilter(
                                 kinds = listOf(aTag.kind),
@@ -103,7 +120,7 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
                     )
                 } else {
                     TypedFilter(
-                        types = COMMON_FEED_TYPES,
+                        types = EVENT_FINDER_TYPES,
                         filter =
                             JsonFilter(
                                 kinds = listOf(aTag.kind),
@@ -125,7 +142,7 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
         return groupByEOSEPresence(eventsToWatch).map {
             listOf(
                 TypedFilter(
-                    types = COMMON_FEED_TYPES,
+                    types = EVENT_FINDER_TYPES,
                     filter =
                         JsonFilter(
                             kinds =
@@ -147,6 +164,20 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
                             limit = 1000,
                         ),
                 ),
+                TypedFilter(
+                    types = EVENT_FINDER_TYPES,
+                    filter =
+                        JsonFilter(
+                            kinds =
+                                listOf(
+                                    DeletionEvent.KIND,
+                                ),
+                            tags = mapOf("e" to it.map { it.idHex }),
+                            since = findMinimumEOSEs(it),
+                            // Max amount of "replies" to download on a specific event.
+                            limit = 10,
+                        ),
+                ),
             )
         }.flatten()
     }
@@ -159,9 +190,10 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
         return groupByEOSEPresence(eventsToWatch).map {
             listOf(
                 TypedFilter(
-                    types = COMMON_FEED_TYPES,
+                    types = EVENT_FINDER_TYPES,
                     filter =
                         JsonFilter(
+                            kinds = listOf(TextNoteEvent.KIND),
                             tags = mapOf("q" to it.map { it.idHex }),
                             since = findMinimumEOSEs(it),
                             // Max amount of "replies" to download on a specific event.
@@ -190,7 +222,7 @@ object NostrSingleEventDataSource : NostrDataSource("SingleEventFeed") {
         // downloads linked events to this event.
         return listOf(
             TypedFilter(
-                types = COMMON_FEED_TYPES,
+                types = EVENT_FINDER_TYPES,
                 filter =
                     JsonFilter(
                         ids = interestedEvents.toList(),

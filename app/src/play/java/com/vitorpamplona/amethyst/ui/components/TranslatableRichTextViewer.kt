@@ -65,12 +65,14 @@ import com.vitorpamplona.amethyst.ui.theme.lessImportantLink
 import com.vitorpamplona.quartz.events.ImmutableListOfLists
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.util.Locale
 
 @Composable
 fun TranslatableRichTextViewer(
     content: String,
     canPreview: Boolean,
+    quotesLeft: Int,
     modifier: Modifier = Modifier,
     tags: ImmutableListOfLists<String>,
     backgroundColor: MutableState<Color>,
@@ -93,15 +95,16 @@ fun TranslatableRichTextViewer(
 
     Crossfade(targetState = translatedTextState) {
         RenderText(
-            it,
-            content,
-            canPreview,
-            modifier,
-            tags,
-            backgroundColor,
-            id,
-            accountViewModel,
-            nav,
+            translatedTextState = it,
+            content = content,
+            canPreview = canPreview,
+            quotesLeft = quotesLeft,
+            modifier = modifier,
+            tags = tags,
+            backgroundColor = backgroundColor,
+            id = id,
+            accountViewModel = accountViewModel,
+            nav = nav,
         )
     }
 }
@@ -111,6 +114,7 @@ private fun RenderText(
     translatedTextState: TranslationConfig,
     content: String,
     canPreview: Boolean,
+    quotesLeft: Int,
     modifier: Modifier,
     tags: ImmutableListOfLists<String>,
     backgroundColor: MutableState<Color>,
@@ -130,6 +134,7 @@ private fun RenderText(
         ExpandableRichTextViewer(
             toBeViewed,
             canPreview,
+            quotesLeft,
             modifier,
             tags,
             backgroundColor,
@@ -222,24 +227,26 @@ private fun TranslationMessage(
         ) {
             DropdownMenuItem(
                 text = {
-                    if (source in accountViewModel.account.dontTranslateFrom) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                    Row {
+                        if (source in accountViewModel.account.dontTranslateFrom) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+
+                        Spacer(modifier = Modifier.size(10.dp))
+
+                        Text(
+                            stringResource(
+                                R.string.translations_never_translate_from_lang,
+                                Locale(source).displayName,
+                            ),
                         )
-                    } else {
-                        Spacer(modifier = Modifier.size(24.dp))
                     }
-
-                    Spacer(modifier = Modifier.size(10.dp))
-
-                    Text(
-                        stringResource(
-                            R.string.translations_never_translate_from_lang,
-                            Locale(source).displayName,
-                        ),
-                    )
                 },
                 onClick = {
                     scope.launch(Dispatchers.IO) {
@@ -251,24 +258,26 @@ private fun TranslationMessage(
             HorizontalDivider(thickness = DividerThickness)
             DropdownMenuItem(
                 text = {
-                    if (accountViewModel.account.preferenceBetween(source, target) == source) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                    Row {
+                        if (accountViewModel.account.preferenceBetween(source, target) == source) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+
+                        Spacer(modifier = Modifier.size(10.dp))
+
+                        Text(
+                            stringResource(
+                                R.string.translations_show_in_lang_first,
+                                Locale(source).displayName,
+                            ),
                         )
-                    } else {
-                        Spacer(modifier = Modifier.size(24.dp))
                     }
-
-                    Spacer(modifier = Modifier.size(10.dp))
-
-                    Text(
-                        stringResource(
-                            R.string.translations_show_in_lang_first,
-                            Locale(source).displayName,
-                        ),
-                    )
                 },
                 onClick = {
                     scope.launch(Dispatchers.IO) {
@@ -279,24 +288,26 @@ private fun TranslationMessage(
             )
             DropdownMenuItem(
                 text = {
-                    if (accountViewModel.account.preferenceBetween(source, target) == target) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            modifier = Modifier.size(24.dp),
+                    Row {
+                        if (accountViewModel.account.preferenceBetween(source, target) == target) {
+                            Icon(
+                                imageVector = Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                            )
+                        } else {
+                            Spacer(modifier = Modifier.size(24.dp))
+                        }
+
+                        Spacer(modifier = Modifier.size(10.dp))
+
+                        Text(
+                            stringResource(
+                                R.string.translations_show_in_lang_first,
+                                Locale(target).displayName,
+                            ),
                         )
-                    } else {
-                        Spacer(modifier = Modifier.size(24.dp))
                     }
-
-                    Spacer(modifier = Modifier.size(10.dp))
-
-                    Text(
-                        stringResource(
-                            R.string.translations_show_in_lang_first,
-                            Locale(target).displayName,
-                        ),
-                    )
                 },
                 onClick = {
                     scope.launch(Dispatchers.IO) {
@@ -312,24 +323,26 @@ private fun TranslationMessage(
                 languageList.get(i)?.let { lang ->
                     DropdownMenuItem(
                         text = {
-                            if (lang.language in accountViewModel.account.translateTo) {
-                                Icon(
-                                    imageVector = Icons.Default.Check,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(24.dp),
+                            Row {
+                                if (lang.language in accountViewModel.account.translateTo) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(24.dp),
+                                    )
+                                } else {
+                                    Spacer(modifier = Modifier.size(24.dp))
+                                }
+
+                                Spacer(modifier = Modifier.size(10.dp))
+
+                                Text(
+                                    stringResource(
+                                        R.string.translations_always_translate_to_lang,
+                                        lang.displayName,
+                                    ),
                                 )
-                            } else {
-                                Spacer(modifier = Modifier.size(24.dp))
                             }
-
-                            Spacer(modifier = Modifier.size(10.dp))
-
-                            Text(
-                                stringResource(
-                                    R.string.translations_always_translate_to_lang,
-                                    lang.displayName,
-                                ),
-                            )
                         },
                         onClick = {
                             scope.launch(Dispatchers.IO) {
@@ -355,7 +368,7 @@ fun TranslateAndWatchLanguageChanges(
     LaunchedEffect(accountState) {
         // This takes some time. Launches as a Composition scope to make sure this gets cancel if this
         // item gets out of view.
-        launch(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             LanguageTranslatorService.autoTranslate(
                 content,
                 accountViewModel.account.dontTranslateFrom,

@@ -49,7 +49,7 @@
     <string name="boost">Boost</string>
     <string name="boosted">boosté</string>
     <string name="edited">modifié</string>
-    <string name="edited_number">éditer #%1$s</string>
+    <string name="edited_number">modification #%1$s</string>
     <string name="original">original</string>
     <string name="quote">Citation</string>
     <string name="fork">Fork</string>
@@ -276,6 +276,7 @@
     <string name="report_dialog_title">Bloquer et Signaler</string>
     <string name="block_only">Bloquer</string>
     <string name="bookmarks">Favoris</string>
+    <string name="drafts">Brouillons</string>
     <string name="private_bookmarks">Favoris Privés</string>
     <string name="public_bookmarks">Favoris Publics</string>
     <string name="add_to_private_bookmarks">Ajouter aux Favoris Privés</string>
@@ -441,6 +442,8 @@
     <string name="connectivity_type_always">Toujours</string>
     <string name="connectivity_type_wifi_only">Wifi uniquement</string>
     <string name="connectivity_type_never">Jamais</string>
+    <string name="ui_feature_set_type_complete">Complet</string>
+    <string name="ui_feature_set_type_simplified">Simplifié</string>
     <string name="system">Système</string>
     <string name="light">Clair</string>
     <string name="dark">Sombre</string>
@@ -452,6 +455,8 @@
     <string name="automatically_show_url_preview">Prévisualisation des URLs</string>
     <string name="automatically_hide_nav_bars">Défilement immersif</string>
     <string name="automatically_hide_nav_bars_description">Masquer les barres de navigation lors du défilement</string>
+    <string name="ui_style">Mode UI</string>
+    <string name="ui_style_description">Choisir le style du message</string>
     <string name="load_image">Charger l\'image</string>
     <string name="spamming_users">Spammeurs</string>
     <string name="muted_button">Silencieux. Cliquer pour réactiver le son</string>
@@ -499,7 +504,7 @@
     <string name="lightning_wallets_not_found">Erreur d\'analyse du message d\'erreur</string>
     <string name="poll_zap_value_min_max_explainer">Les votes sont pondérés par le montant du zap. Vous pouvez définir un montant minimum pour éviter les spammeurs et un montant maximum pour éviter qu\'un grand nombre de zappeurs ne prenne le contrôle du sondage. Utilisez le même montant dans les deux champs pour vous assurer que chaque vote a la même valeur. Laissez le champ vide pour accepter n\'importe quel montant.</string>
     <string name="error_dialog_zap_error">Impossible d\'envoyer un zap</string>
-    <string name="error_dialog_talk_to_user">Contacter l\'Utilisateur</string>
+    <string name="error_dialog_talk_to_user">Contacter l\'utilisateur</string>
     <string name="error_dialog_button_ok">Ok</string>
     <string name="relay_information_document_error_assemble_url">Impossible d\'atteindre %1$s: %2$s</string>
     <string name="relay_information_document_error_reach_server">Impossible d\'atteindre %1$s: %2$s</string>
@@ -556,11 +561,16 @@
     <string name="could_not_resolve_check_if_you_are_connected_if_the_server_is_up_and_if_the_lightning_address_is_correct_exception">Impossible de résoudre %1$s. Vérifiez si vous êtes connecté, si le serveur est actif et si l\'adresse Lightning %2$s est correcte.\n\nL\'erreur était : %3$s</string>
     <string name="could_not_fetch_invoice_from">Impossible de récupérer la facture depuis %1$s</string>
     <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup">Erreur lors de l\'analyse du JSON à partir de l\'Adresse Lightning. Vérifiez la configuration lightning de l\'utilisateur</string>
+    <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup_with_user">Erreur lors de l\'analyse du JSON de %1$s. Vérifiez la configuration lightning de l\'utilisateur</string>
     <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration">URL de callback introuvable dans la configuration serveur de l\'adresse lightning de l\'utilisateur</string>
+    <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration_with_user">URL de callback introuvable dans la réponse de %1$s</string>
     <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup">Erreur lors de l\'analyse du JSON à partir de la récupération de la facture de l\'Adresse Lightning. Vérifiez la configuration Lightning de l\'utilisateur</string>
+    <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup_with_user">Erreur lors de l\'analyse du JSON de la facture de %1$s. Vérifiez la configuration lightning de l\'utilisateur</string>
     <string name="incorrect_invoice_amount_sats_from_it_should_have_been">Montant de la facture (%1$s sats) incorrect de %2$s. Il aurait dû être %3$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error">Impossible de créer une facture lightning avant d\'envoyer le zap. Le portefeuille lightning du destinataire a envoyé l\'erreur suivante : %1$s</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error_with_user">Impossible de créer une facture lightning. Message de %1$s: %2$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json">Impossible de créer une facture lightning avant d\'envoyer le zap. Élément pr introuvable dans le JSON résultant.</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json_with_user">Impossible de créer une facture lightning avec %1$s. Élément pr introuvable dans le JSON résultant.</string>
     <string name="read_only_user">Utilisateur en lecture seule</string>
     <string name="no_reactions_setup">Aucune réaction configurée</string>
     <string name="select_push_server">Sélectionnez une application UnifiedPush</string>
@@ -618,6 +628,7 @@
     <string name="server_did_not_provide_a_url_after_uploading">Le serveur n\'a pas fourni d\'URL après le téléversement</string>
     <string name="could_not_download_from_the_server">Impossible de télécharger le média depuis le serveur</string>
     <string name="could_not_prepare_local_file_to_upload">Impossible de préparer le fichier local à téléverser: %1$s</string>
+    <string name="edit_draft">Modifier le brouillon</string>
     <string name="login_with_qr_code">Se connecter avec un QR Code</string>
     <string name="route">Route</string>
     <string name="route_home">Accueil</string>
@@ -680,4 +691,19 @@
     <string name="message_to_author">Récapitulatif des modifications</string>
     <string name="message_to_author_placeholder">Corrections rapides ...</string>
     <string name="accept_the_suggestion">Accepter la Suggestion</string>
+    <string name="accessibility_download_for_offline">Télécharger</string>
+    <string name="accessibility_lyrics_on">Paroles activées</string>
+    <string name="accessibility_lyrics_off">Paroles désactivées</string>
+    <string name="accessibility_turn_on_sealed_message">Message scellé désactivé. Cliquer pour activer le message scellé</string>
+    <string name="accessibility_turn_off_sealed_message">Message scellé activé. Cliquer pour désactiver le message scellé</string>
+    <string name="accessibility_send">Envoyer</string>
+    <string name="accessibility_play_username">Écouter le nom d\'utilisateur</string>
+    <string name="accessibility_scan_qr_code">Scanner le QR code</string>
+    <string name="accessibility_navigate_to_alby">Accéder au fournisseur de portefeuille tiers Alby</string>
+    <string name="it_s_not_possible_to_reply_to_a_draft_note">Il n\'est pas possible de répondre à un brouillon</string>
+    <string name="it_s_not_possible_to_quote_to_a_draft_note">Il n\'est pas possible de citer un brouillon</string>
+    <string name="it_s_not_possible_to_react_to_a_draft_note">Il n\'est pas possible de réagir à un brouillon</string>
+    <string name="it_s_not_possible_to_zap_to_a_draft_note">Il n\'est pas possible de zapper un brouillon</string>
+    <string name="draft_note">Brouillon</string>
+    <string name="load_from_text">Depuis message</string>
 </resources>

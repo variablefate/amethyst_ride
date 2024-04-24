@@ -97,9 +97,9 @@ class Result(
 
 class ExternalSignerLauncher(
     private val npub: String,
-    val signerPackageName: String = "com.greenart7c3.nostrsigner",
+    val signerPackageName: String,
 ) {
-    private val contentCache = LruCache<String, (String) -> Unit>(20)
+    private val contentCache = LruCache<String, (String) -> Unit>(50)
 
     private var signerAppLauncher: ((Intent) -> Unit)? = null
     private var contentResolver: (() -> ContentResolver)? = null
@@ -125,20 +125,20 @@ class ExternalSignerLauncher(
             val localResults: Array<Result> = Result.fromJsonArray(results)
             localResults.forEach {
                 val signature = it.signature ?: ""
-                val packageName = it.`package` ?: ""
+                val packageName = it.`package`?.let { "-$it" } ?: ""
                 val id = it.id ?: ""
                 if (id.isNotBlank()) {
-                    val result = if (packageName.isNotBlank()) "$signature-$packageName" else signature
+                    val result = if (packageName.isNotBlank()) "$signature$packageName" else signature
                     val contentCache = contentCache.get(id)
                     contentCache?.invoke(result)
                 }
             }
         } else {
             val signature = data.getStringExtra("signature") ?: ""
-            val packageName = data.getStringExtra("package") ?: ""
+            val packageName = data.getStringExtra("package")?.let { "-$it" } ?: ""
             val id = data.getStringExtra("id") ?: ""
             if (id.isNotBlank()) {
-                val result = if (packageName.isNotBlank()) "$signature-$packageName" else signature
+                val result = if (packageName.isNotBlank()) "$signature$packageName" else signature
                 val contentCache = contentCache.get(id)
                 contentCache?.invoke(result)
             }
@@ -170,6 +170,10 @@ class ExternalSignerLauncher(
                 Permission(
                     "sign_event",
                     22242,
+                ),
+                Permission(
+                    "sign_event",
+                    31234,
                 ),
                 Permission(
                     "nip04_encrypt",
@@ -242,13 +246,11 @@ class ExternalSignerLauncher(
         columnName: String = "signature",
         onReady: (String) -> Unit,
     ) {
-        val result =
-            getDataFromResolver(
-                SignerType.SIGN_EVENT,
-                arrayOf(event.toJson(), event.pubKey()),
-                columnName,
-            )
-        result.fold(
+        getDataFromResolver(
+            SignerType.SIGN_EVENT,
+            arrayOf(event.toJson(), event.pubKey()),
+            columnName,
+        ).fold(
             onFailure = { },
             onSuccess = {
                 if (it == null) {
@@ -282,7 +284,7 @@ class ExternalSignerLauncher(
     ): kotlin.Result<String?> {
         val localData =
             if (signerType !== SignerType.GET_PUBLIC_KEY) {
-                data.toList().plus(npub).toTypedArray()
+                arrayOf(*data, npub)
             } else {
                 data
             }
@@ -322,15 +324,24 @@ class ExternalSignerLauncher(
         return kotlin.Result.success(null)
     }
 
+    fun hashCodeFields(
+        str1: String,
+        str2: String,
+        onReady: (String) -> Unit,
+    ): Int {
+        var result = str1.hashCode()
+        result = 31 * result + str2.hashCode()
+        result = 31 * result + onReady.hashCode()
+        return result
+    }
+
     fun decrypt(
         encryptedContent: String,
         pubKey: HexKey,
         signerType: SignerType = SignerType.NIP04_DECRYPT,
         onReady: (String) -> Unit,
     ) {
-        val id = (encryptedContent + pubKey + onReady.toString()).hashCode().toString()
-        val result = getDataFromResolver(signerType, arrayOf(encryptedContent, pubKey))
-        result.fold(
+        getDataFromResolver(signerType, arrayOf(encryptedContent, pubKey)).fold(
             onFailure = { },
             onSuccess = {
                 if (it == null) {
@@ -338,7 +349,7 @@ class ExternalSignerLauncher(
                         encryptedContent,
                         signerType,
                         pubKey,
-                        id,
+                        hashCodeFields(encryptedContent, pubKey, onReady).toString(),
                         onReady,
                     )
                 } else {
@@ -354,9 +365,7 @@ class ExternalSignerLauncher(
         signerType: SignerType = SignerType.NIP04_ENCRYPT,
         onReady: (String) -> Unit,
     ) {
-        val id = (decryptedContent + pubKey + onReady.toString()).hashCode().toString()
-        val result = getDataFromResolver(signerType, arrayOf(decryptedContent, pubKey))
-        result.fold(
+        getDataFromResolver(signerType, arrayOf(decryptedContent, pubKey)).fold(
             onFailure = { },
             onSuccess = {
                 if (it == null) {
@@ -364,7 +373,7 @@ class ExternalSignerLauncher(
                         decryptedContent,
                         signerType,
                         pubKey,
-                        id,
+                        hashCodeFields(decryptedContent, pubKey, onReady).toString(),
                         onReady,
                     )
                 } else {
@@ -378,9 +387,7 @@ class ExternalSignerLauncher(
         event: LnZapRequestEvent,
         onReady: (String) -> Unit,
     ) {
-        val result =
-            getDataFromResolver(SignerType.DECRYPT_ZAP_EVENT, arrayOf(event.toJson(), event.pubKey))
-        result.fold(
+        getDataFromResolver(SignerType.DECRYPT_ZAP_EVENT, arrayOf(event.toJson(), event.pubKey)).fold(
             onFailure = { },
             onSuccess = {
                 if (it == null) {

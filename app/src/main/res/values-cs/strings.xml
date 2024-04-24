@@ -274,6 +274,7 @@
     <string name="report_dialog_title">Blokovat a nahlásit</string>
     <string name="block_only">Blokovat</string>
     <string name="bookmarks">Záložky</string>
+    <string name="drafts">Koncepty</string>
     <string name="private_bookmarks">Soukromé záložky</string>
     <string name="public_bookmarks">Veřejné záložky</string>
     <string name="add_to_private_bookmarks">Přidat do soukromých záložek</string>
@@ -439,6 +440,8 @@
     <string name="connectivity_type_always">Vždy</string>
     <string name="connectivity_type_wifi_only">Pouze Wi-Fi</string>
     <string name="connectivity_type_never">Nikdy</string>
+    <string name="ui_feature_set_type_complete">Hotovo</string>
+    <string name="ui_feature_set_type_simplified">Zjednodušené</string>
     <string name="system">Systém</string>
     <string name="light">Světlý</string>
     <string name="dark">Tmavý</string>
@@ -450,6 +453,8 @@
     <string name="automatically_show_url_preview">Automaticky zobrazit náhled URL</string>
     <string name="automatically_hide_nav_bars">Imersivní rolování</string>
     <string name="automatically_hide_nav_bars_description">Skrýt navigační panely při rolování</string>
+    <string name="ui_style">Režim UI</string>
+    <string name="ui_style_description">Zvolte styl příspěvku</string>
     <string name="load_image">Načíst obrázek</string>
     <string name="spamming_users">Spamovací uživatelé</string>
     <string name="muted_button">Ztlumené. Klikněte pro odztlumení</string>
@@ -554,11 +559,16 @@
     <string name="could_not_resolve_check_if_you_are_connected_if_the_server_is_up_and_if_the_lightning_address_is_correct_exception">Nepodařilo se vyřešit %1$s. Zkontrolujte, zda jste připojeni, zda je server aktivní a zda je adresa %2$s správná.\n\nVýjimka byla: %3$s</string>
     <string name="could_not_fetch_invoice_from">Nepodařilo se načíst fakturu z %1$s</string>
     <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup">Chyba při analýze JSON z Lightning adresy. Zkontrolujte uživatelovo bleskové nastavení</string>
+    <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup_with_user">Chyba při analýze JSON z %1$s. Zkontrolujte uživatelské bleskové nastavení</string>
     <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration">URL adresa zpětného volání nebyla nalezena v konfiguraci serveru pro bleskovou adresu uživatele</string>
+    <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration_with_user">Adresa URL zpětného volání nebyla nalezena v odpovědi %1$s</string>
     <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup">Chyba při analýze JSON z načtení faktur v Lightning adrese. Zkontrolujte uživatelské nastavení</string>
+    <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup_with_user">Chyba při analýze JSON z načtení faktury %1$s. Zkontrolujte uživatelské bleskové nastavení</string>
     <string name="incorrect_invoice_amount_sats_from_it_should_have_been">Nesprávná částka faktury (%1$s sats) od %2$s. Měla by být %3$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error">Nepodařilo se vytvořit bleskovou fakturu před odesláním zap. Blesková peněženka příjemce odeslala následující chybu: %1$s</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error_with_user">Nelze vytvořit bleskovou fakturu. Zpráva od %1$s: %2$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json">Nepodařilo se vytvořit bleskovou fakturu před odesláním zap. Prvek pr nebyl nalezen v výsledném JSON.</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json_with_user">Nelze vytvořit bleskovou fakturu z %1$s: Prvek pr nebyl nalezen ve výsledném JSON.</string>
     <string name="read_only_user">Uživatel pouze pro čtení</string>
     <string name="no_reactions_setup">Žádné nastavení reakcí</string>
     <string name="select_push_server">Vyberte distributor push oznámení</string>
@@ -616,6 +626,7 @@
     <string name="server_did_not_provide_a_url_after_uploading">Server po nahrání neposkytl URL</string>
     <string name="could_not_download_from_the_server">Nepodařilo se stáhnout nahraná média ze serveru</string>
     <string name="could_not_prepare_local_file_to_upload">Nelze připravit místní soubor k nahrání: %1$s</string>
+    <string name="edit_draft">Upravit koncept</string>
     <string name="login_with_qr_code">Přihlášení pomocí QR kódu</string>
     <string name="route">Trasa</string>
     <string name="route_home">Domů</string>
@@ -687,4 +698,10 @@
     <string name="accessibility_play_username">Přehrát uživatelské jméno jako audio</string>
     <string name="accessibility_scan_qr_code">Skenovat QR kód</string>
     <string name="accessibility_navigate_to_alby">Přejít na poskytovatele peněženky třetí strany Alby</string>
+    <string name="it_s_not_possible_to_reply_to_a_draft_note">Není možné odpovědět na koncept</string>
+    <string name="it_s_not_possible_to_quote_to_a_draft_note">Není možné citovat koncept</string>
+    <string name="it_s_not_possible_to_react_to_a_draft_note">Není možné reagovat na koncept</string>
+    <string name="it_s_not_possible_to_zap_to_a_draft_note">Není možné poslat zap konceptu</string>
+    <string name="draft_note">Koncept</string>
+    <string name="load_from_text">Ze zprávy</string>
 </resources>

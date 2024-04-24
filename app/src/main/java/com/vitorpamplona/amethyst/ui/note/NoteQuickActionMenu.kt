@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.AlternateEmail
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
@@ -84,6 +85,7 @@ import androidx.core.graphics.ColorUtils
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.model.AddressableNote
 import com.vitorpamplona.amethyst.model.Note
+import com.vitorpamplona.amethyst.ui.actions.NewPostView
 import com.vitorpamplona.amethyst.ui.components.SelectTextDialog
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.ReportNoteDialog
@@ -117,7 +119,7 @@ val externalLinkForNote = { note: Note ->
         } else if (note.event is AudioTrackEvent) {
             "https://zapstr.live/?track=${note.address()?.toNAddr()}"
         } else {
-            "https://habla.news/a/${note.address()?.toNAddr()}"
+            "https://njump.me/${note.address()?.toNAddr()}"
         }
     } else {
         if (note.event is FileHeaderEvent) {
@@ -136,11 +138,16 @@ fun LongPressToQuickAction(
 ) {
     val popupExpanded = remember { mutableStateOf(false) }
     val showPopup = remember { { popupExpanded.value = true } }
-    val hidePopup = remember { { popupExpanded.value = false } }
 
     content(showPopup)
 
-    NoteQuickActionMenu(baseNote, popupExpanded.value, hidePopup, accountViewModel)
+    NoteQuickActionMenu(
+        note = baseNote,
+        popupExpanded = popupExpanded.value,
+        onDismiss = { popupExpanded.value = false },
+        accountViewModel = accountViewModel,
+        nav = {},
+    )
 }
 
 @Composable
@@ -149,6 +156,39 @@ fun NoteQuickActionMenu(
     popupExpanded: Boolean,
     onDismiss: () -> Unit,
     accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
+) {
+    val editDraftDialog = remember { mutableStateOf(false) }
+
+    if (editDraftDialog.value) {
+        NewPostView(
+            onClose = {
+                editDraftDialog.value = false
+            },
+            accountViewModel = accountViewModel,
+            draft = note,
+            nav = { },
+        )
+    }
+
+    NoteQuickActionMenu(
+        note = note,
+        popupExpanded = popupExpanded,
+        onDismiss = onDismiss,
+        onWantsToEditDraft = { editDraftDialog.value = true },
+        accountViewModel = accountViewModel,
+        nav = nav,
+    )
+}
+
+@Composable
+fun NoteQuickActionMenu(
+    note: Note,
+    popupExpanded: Boolean,
+    onDismiss: () -> Unit,
+    onWantsToEditDraft: () -> Unit,
+    accountViewModel: AccountViewModel,
+    nav: (String) -> Unit,
 ) {
     val showSelectTextDialog = remember { mutableStateOf(false) }
     val showDeleteAlertDialog = remember { mutableStateOf(false) }
@@ -163,6 +203,7 @@ fun NoteQuickActionMenu(
             showBlockAlertDialog,
             showDeleteAlertDialog,
             showReportDialog,
+            onWantsToEditDraft,
         )
     }
 
@@ -209,6 +250,7 @@ private fun RenderMainPopup(
     showBlockAlertDialog: MutableState<Boolean>,
     showDeleteAlertDialog: MutableState<Boolean>,
     showReportDialog: MutableState<Boolean>,
+    onWantsToEditDraft: () -> Unit,
 ) {
     val context = LocalContext.current
     val primaryLight = lightenColor(MaterialTheme.colorScheme.primary, 0.1f)
@@ -339,31 +381,41 @@ private fun RenderMainPopup(
                         onDismiss()
                     }
                     VerticalDivider(color = primaryLight)
-                    NoteQuickActionItem(
-                        icon = Icons.Default.Share,
-                        label = stringResource(R.string.quick_action_share),
-                    ) {
-                        val sendIntent =
-                            Intent().apply {
-                                action = Intent.ACTION_SEND
-                                type = "text/plain"
-                                putExtra(
-                                    Intent.EXTRA_TEXT,
-                                    externalLinkForNote(note),
-                                )
-                                putExtra(
-                                    Intent.EXTRA_TITLE,
-                                    context.getString(R.string.quick_action_share_browser_link),
-                                )
-                            }
+                    if (isOwnNote && note.isDraft()) {
+                        NoteQuickActionItem(
+                            Icons.Default.Edit,
+                            stringResource(R.string.edit_draft),
+                        ) {
+                            onDismiss()
+                            onWantsToEditDraft()
+                        }
+                    } else {
+                        NoteQuickActionItem(
+                            icon = Icons.Default.Share,
+                            label = stringResource(R.string.quick_action_share),
+                        ) {
+                            val sendIntent =
+                                Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    type = "text/plain"
+                                    putExtra(
+                                        Intent.EXTRA_TEXT,
+                                        externalLinkForNote(note),
+                                    )
+                                    putExtra(
+                                        Intent.EXTRA_TITLE,
+                                        context.getString(R.string.quick_action_share_browser_link),
+                                    )
+                                }
 
-                        val shareIntent =
-                            Intent.createChooser(
-                                sendIntent,
-                                context.getString(R.string.quick_action_share),
-                            )
-                        ContextCompat.startActivity(context, shareIntent, null)
-                        onDismiss()
+                            val shareIntent =
+                                Intent.createChooser(
+                                    sendIntent,
+                                    context.getString(R.string.quick_action_share),
+                                )
+                            ContextCompat.startActivity(context, shareIntent, null)
+                            onDismiss()
+                        }
                     }
 
                     if (!isOwnNote) {
@@ -389,14 +441,20 @@ fun NoteQuickActionItem(
     onClick: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.size(70.dp).clickable { onClick() },
+        modifier =
+            Modifier
+                .size(70.dp)
+                .clickable { onClick() },
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(24.dp).padding(bottom = 5.dp),
+            modifier =
+                Modifier
+                    .size(24.dp)
+                    .padding(bottom = 5.dp),
             tint = Color.White,
         )
         Text(text = label, fontSize = 12.sp, color = Color.White, textAlign = TextAlign.Center)
@@ -527,7 +585,10 @@ fun QuickActionAlertDialog(
         text = { Text(textContent) },
         confirmButton = {
             Row(
-                modifier = Modifier.padding(all = 8.dp).fillMaxWidth(),
+                modifier =
+                    Modifier
+                        .padding(all = 8.dp)
+                        .fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 TextButton(onClick = onClickDontShowAgain) {

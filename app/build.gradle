@@ -12,9 +12,9 @@ android {
         applicationId "com.vitorpamplona.amethyst"
         minSdk 26
         targetSdk 34
-        versionCode 362
-        versionName "0.85.3"
-        buildConfigField "String", "RELEASE_NOTES_ID", "\"d8da33fd13d129d86c53564aedefafbe3716f007c520431be4a8e488d3925afb\""
+        versionCode 368
+        versionName "0.86.5"
+        buildConfigField "String", "RELEASE_NOTES_ID", "\"a704a11334ed4fe6fc6ee6f8856f6f005da33644770616f1437f8b2b488b52b1\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -143,14 +143,13 @@ android {
 
     composeOptions {
         // Should match compose version : https://developer.android.com/jetpack/androidx/releases/compose-kotlin
-        kotlinCompilerExtensionVersion "1.5.8"
+        kotlinCompilerExtensionVersion "1.5.11"
     }
     packagingOptions {
         resources {
             excludes += ['/META-INF/{AL2.0,LGPL2.1}', '**/libscrypt.dylib']
         }
     }
-
 
     lint {
         disable 'MissingTranslation'
@@ -162,12 +161,12 @@ android {
 }
 
 dependencies {
+    implementation platform(libs.androidx.compose.bom)
+
     implementation project(path: ':quartz')
     implementation project(path: ':commons')
     implementation libs.androidx.core.ktx
     implementation libs.androidx.activity.compose
-
-    implementation platform(libs.androidx.compose.bom)
 
     implementation libs.androidx.ui
     implementation libs.androidx.ui.graphics
@@ -204,9 +203,6 @@ dependencies {
 
     // Websockets API
     implementation libs.okhttp
-
-    // HTML Parsing for Link Preview
-    implementation libs.jsoup
 
     // Encrypted Key Storage
     implementation libs.androidx.security.crypto.ktx
@@ -282,9 +278,13 @@ dependencies {
 
     testImplementation libs.junit
     testImplementation libs.mockk
+
+    androidTestImplementation platform(libs.androidx.compose.bom)
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.junit.ktx
     androidTestImplementation libs.androidx.espresso.core
+
+    debugImplementation platform(libs.androidx.compose.bom)
     debugImplementation libs.androidx.ui.tooling
     debugImplementation libs.androidx.ui.test.manifest
 }

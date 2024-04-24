@@ -56,8 +56,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
-import androidx.compose.material.icons.automirrored.outlined.ArrowForwardIos
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.CurrencyBitcoin
 import androidx.compose.material.icons.filled.LocationOff
@@ -66,7 +64,6 @@ import androidx.compose.material.icons.filled.Sell
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -128,7 +125,7 @@ import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.isGranted
 import com.google.accompanist.permissions.rememberPermissionState
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.RichTextParser
+import com.vitorpamplona.amethyst.commons.richtext.RichTextParser
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.model.User
 import com.vitorpamplona.amethyst.service.Nip96MediaServers
@@ -147,6 +144,7 @@ import com.vitorpamplona.amethyst.ui.note.NoteCompose
 import com.vitorpamplona.amethyst.ui.note.PollIcon
 import com.vitorpamplona.amethyst.ui.note.RegularPostIcon
 import com.vitorpamplona.amethyst.ui.note.UsernameDisplay
+import com.vitorpamplona.amethyst.ui.note.ZapSplitIcon
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.MyTextField
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.ShowUserSuggestionList
@@ -169,18 +167,21 @@ import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.amethyst.ui.theme.replyModifier
 import com.vitorpamplona.amethyst.ui.theme.subtleBorder
 import com.vitorpamplona.quartz.events.ClassifiedsEvent
-import com.vitorpamplona.quartz.events.toImmutableListOfLists
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.lang.Math.round
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, FlowPreview::class)
 @Composable
 fun NewPostView(
     onClose: () -> Unit,
@@ -188,6 +189,7 @@ fun NewPostView(
     quote: Note? = null,
     fork: Note? = null,
     version: Note? = null,
+    draft: Note? = null,
     enableMessageInterface: Boolean = false,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
@@ -202,10 +204,21 @@ fun NewPostView(
     var showRelaysDialog by remember { mutableStateOf(false) }
     var relayList = remember { accountViewModel.account.activeWriteRelays().toImmutableList() }
 
-    LaunchedEffect(Unit) {
-        postViewModel.load(accountViewModel, baseReplyTo, quote, fork, version)
-
+    LaunchedEffect(key1 = postViewModel.draftTag) {
         launch(Dispatchers.IO) {
+            postViewModel.draftTextChanges
+                .receiveAsFlow()
+                .debounce(1000)
+                .collectLatest {
+                    postViewModel.sendDraft(relayList = relayList)
+                }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        launch(Dispatchers.IO) {
+            postViewModel.load(accountViewModel, baseReplyTo, quote, fork, version, draft)
+
             postViewModel.imageUploadingError.collect { error ->
                 withContext(Dispatchers.Main) { Toast.makeText(context, error, Toast.LENGTH_SHORT).show() }
             }
@@ -222,7 +235,12 @@ fun NewPostView(
     }
 
     Dialog(
-        onDismissRequest = { onClose() },
+        onDismissRequest = {
+            scope.launch {
+                postViewModel.sendDraftSync(relayList = relayList)
+                onClose()
+            }
+        },
         properties =
             DialogProperties(
                 usePlatformDefaultWidth = false,
@@ -281,8 +299,9 @@ fun NewPostView(
                             Spacer(modifier = StdHorzSpacer)
                             CloseButton(
                                 onPress = {
-                                    postViewModel.cancel()
                                     scope.launch {
+                                        postViewModel.sendDraftSync(relayList = relayList)
+                                        postViewModel.cancel()
                                         delay(100)
                                         onClose()
                                     }
@@ -339,6 +358,7 @@ fun NewPostView(
                                             makeItShort = true,
                                             unPackReply = false,
                                             isQuotedNote = true,
+                                            quotesLeft = 1,
                                             modifier = MaterialTheme.colorScheme.replyModifier,
                                             accountViewModel = accountViewModel,
                                             nav = nav,
@@ -353,7 +373,7 @@ fun NewPostView(
                                     }
                                 }
 
-                                if (enableMessageInterface) {
+                                if (postViewModel.wantsDirectMessage) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.padding(vertical = Size5dp, horizontal = Size10dp),
@@ -416,11 +436,12 @@ fun NewPostView(
                                             val backgroundColor = remember { mutableStateOf(bgColor) }
 
                                             BechLink(
-                                                myUrlPreview,
-                                                true,
-                                                backgroundColor,
-                                                accountViewModel,
-                                                nav,
+                                                word = myUrlPreview,
+                                                canPreview = true,
+                                                quotesLeft = 1,
+                                                backgroundColor = backgroundColor,
+                                                accountViewModel = accountViewModel,
+                                                nav = nav,
                                             )
                                         } else if (RichTextParser.isUrlWithoutScheme(myUrlPreview)) {
                                             LoadUrlPreview("https://$myUrlPreview", myUrlPreview, accountViewModel)
@@ -582,7 +603,7 @@ private fun BottomRowActions(postViewModel: NewPostViewModel) {
         }
 
         MarkAsSensitive(postViewModel) {
-            postViewModel.wantsToMarkAsSensitive = !postViewModel.wantsToMarkAsSensitive
+            postViewModel.toggleMarkAsSensitive()
         }
 
         AddGeoHash(postViewModel) {
@@ -828,7 +849,9 @@ fun SellProduct(postViewModel: NewPostViewModel) {
 
             MyTextField(
                 value = postViewModel.title,
-                onValueChange = { postViewModel.title = it },
+                onValueChange = {
+                    postViewModel.updateTitle(it)
+                },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
@@ -864,13 +887,7 @@ fun SellProduct(postViewModel: NewPostViewModel) {
                 modifier = Modifier.fillMaxWidth(),
                 value = postViewModel.price,
                 onValueChange = {
-                    runCatching {
-                        if (it.text.isEmpty()) {
-                            postViewModel.price = TextFieldValue("")
-                        } else if (it.text.toLongOrNull() != null) {
-                            postViewModel.price = it
-                        }
-                    }
+                    postViewModel.updatePrice(it)
                 },
                 placeholder = {
                     Text(
@@ -935,7 +952,9 @@ fun SellProduct(postViewModel: NewPostViewModel) {
             TextSpinner(
                 placeholder = conditionTypes.filter { it.first == postViewModel.condition }.first().second,
                 options = conditionOptions,
-                onSelect = { postViewModel.condition = conditionTypes[it].first },
+                onSelect = {
+                    postViewModel.updateCondition(conditionTypes[it].first)
+                },
                 modifier =
                     Modifier
                         .weight(1f)
@@ -999,7 +1018,9 @@ fun SellProduct(postViewModel: NewPostViewModel) {
                     categoryTypes.filter { it.second == postViewModel.category.text }.firstOrNull()?.second
                         ?: "",
                 options = categoryOptions,
-                onSelect = { postViewModel.category = TextFieldValue(categoryTypes[it].second) },
+                onSelect = {
+                    postViewModel.updateCategory(TextFieldValue(categoryTypes[it].second))
+                },
                 modifier =
                     Modifier
                         .weight(1f)
@@ -1034,7 +1055,9 @@ fun SellProduct(postViewModel: NewPostViewModel) {
 
             MyTextField(
                 value = postViewModel.locationText,
-                onValueChange = { postViewModel.locationText = it },
+                onValueChange = {
+                    postViewModel.updateLocation(it)
+                },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = {
                     Text(
@@ -1073,37 +1096,18 @@ fun FowardZapTo(
                     .fillMaxWidth()
                     .padding(bottom = 10.dp),
         ) {
-            Box(
-                Modifier
-                    .height(20.dp)
-                    .width(25.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Bolt,
-                    contentDescription = stringResource(id = R.string.zaps),
-                    modifier =
-                        Modifier
-                            .size(20.dp)
-                            .align(Alignment.CenterStart),
-                    tint = BitcoinOrange,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowForwardIos,
-                    contentDescription = stringResource(id = R.string.zaps),
-                    modifier =
-                        Modifier
-                            .size(13.dp)
-                            .align(Alignment.CenterEnd),
-                    tint = BitcoinOrange,
-                )
-            }
+            ZapSplitIcon()
 
             Text(
                 text = stringResource(R.string.zap_split_title),
                 fontSize = 20.sp,
                 fontWeight = FontWeight.W500,
-                modifier = Modifier.padding(start = 10.dp),
+                modifier = Modifier.padding(horizontal = 10.dp).weight(1f),
             )
+
+            OutlinedButton(onClick = { postViewModel.updateZapFromText() }) {
+                Text(text = stringResource(R.string.load_from_text))
+            }
         }
 
         HorizontalDivider(thickness = DividerThickness)
@@ -1124,7 +1128,7 @@ fun FowardZapTo(
                 Spacer(modifier = DoubleHorzSpacer)
 
                 Column(modifier = Modifier.weight(1f)) {
-                    UsernameDisplay(splitItem.key, showPlayButton = false)
+                    UsernameDisplay(splitItem.key)
                     Text(
                         text = String.format("%.0f%%", splitItem.percentage * 100),
                         maxLines = 1,
@@ -1139,7 +1143,7 @@ fun FowardZapTo(
                 Slider(
                     value = splitItem.percentage,
                     onValueChange = { sliderValue ->
-                        val rounded = (round(sliderValue * 20)) / 20.0f
+                        val rounded = (round(sliderValue * 100)) / 100.0f
                         postViewModel.updateZapPercentage(index, rounded)
                     },
                     modifier = Modifier.weight(1.5f),
@@ -1280,8 +1284,7 @@ fun Notifying(
             mentions.forEachIndexed { idx, user ->
                 val innerUserState by user.live().metadata.observeAsState()
                 innerUserState?.user?.let { myUser ->
-                    val tags =
-                        remember(innerUserState) { myUser.info?.latestMetadata?.tags?.toImmutableListOfLists() }
+                    val tags = myUser.info?.tags
 
                     Button(
                         shape = ButtonBorder,
@@ -1436,50 +1439,10 @@ private fun ForwardZapTo(
     IconButton(
         onClick = { onClick() },
     ) {
-        Box(
-            Modifier
-                .height(20.dp)
-                .width(25.dp),
-        ) {
-            if (!postViewModel.wantsForwardZapTo) {
-                Icon(
-                    imageVector = Icons.Default.Bolt,
-                    contentDescription = stringResource(R.string.add_zap_split),
-                    modifier =
-                        Modifier
-                            .size(20.dp)
-                            .align(Alignment.CenterStart),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                    contentDescription = null,
-                    modifier =
-                        Modifier
-                            .size(13.dp)
-                            .align(Alignment.CenterEnd),
-                    tint = MaterialTheme.colorScheme.onBackground,
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Outlined.Bolt,
-                    contentDescription = stringResource(id = R.string.cancel_zap_split),
-                    modifier =
-                        Modifier
-                            .size(20.dp)
-                            .align(Alignment.CenterStart),
-                    tint = BitcoinOrange,
-                )
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowForwardIos,
-                    contentDescription = null,
-                    modifier =
-                        Modifier
-                            .size(13.dp)
-                            .align(Alignment.CenterEnd),
-                    tint = BitcoinOrange,
-                )
-            }
+        if (!postViewModel.wantsForwardZapTo) {
+            ZapSplitIcon(tint = MaterialTheme.colorScheme.onBackground)
+        } else {
+            ZapSplitIcon(tint = BitcoinOrange)
         }
     }
 }

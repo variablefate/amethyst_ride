@@ -57,6 +57,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -93,7 +94,6 @@ import com.vitorpamplona.amethyst.ui.actions.PostButton
 import com.vitorpamplona.amethyst.ui.actions.ServerOption
 import com.vitorpamplona.amethyst.ui.actions.UploadFromGallery
 import com.vitorpamplona.amethyst.ui.actions.UrlUserTagTransformation
-import com.vitorpamplona.amethyst.ui.components.ObserveDisplayNip05Status
 import com.vitorpamplona.amethyst.ui.note.ClickableUserPicture
 import com.vitorpamplona.amethyst.ui.note.DisplayRoomSubject
 import com.vitorpamplona.amethyst.ui.note.DisplayUserSetAsSubject
@@ -122,6 +122,10 @@ import com.vitorpamplona.quartz.events.findURLs
 import kotlinx.collections.immutable.persistentSetOf
 import kotlinx.collections.immutable.toPersistentList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -206,6 +210,7 @@ fun LoadRoomByAuthor(
     content(room)
 }
 
+@OptIn(FlowPreview::class)
 @Composable
 fun PrepareChatroomViewModels(
     room: ChatroomKey,
@@ -315,7 +320,13 @@ fun ChatroomScreen(
                 accountViewModel = accountViewModel,
                 nav = nav,
                 routeForLastRead = "Room/${room.hashCode()}",
-                onWantsToReply = { replyTo.value = it },
+                avoidDraft = newPostModel.draftTag,
+                onWantsToReply = {
+                    replyTo.value = it
+                },
+                onWantsToEditDraft = {
+                    newPostModel.load(accountViewModel, null, null, null, null, it)
+                },
             )
         }
 
@@ -325,37 +336,63 @@ fun ChatroomScreen(
 
         val scope = rememberCoroutineScope()
 
+        LaunchedEffect(key1 = newPostModel.draftTag) {
+            launch(Dispatchers.IO) {
+                newPostModel.draftTextChanges
+                    .receiveAsFlow()
+                    .debounce(1000)
+                    .collectLatest {
+                        innerSendPost(newPostModel, room, replyTo, accountViewModel, newPostModel.draftTag)
+                    }
+            }
+        }
+
         // LAST ROW
         PrivateMessageEditFieldRow(newPostModel, isPrivate = true, accountViewModel) {
             scope.launch(Dispatchers.IO) {
-                val urls = findURLs(newPostModel.message.text)
-                val usedAttachments = newPostModel.nip94attachments.filter { it.urls().intersect(urls.toSet()).isNotEmpty() }
+                innerSendPost(newPostModel, room, replyTo, accountViewModel, null)
 
-                if (newPostModel.nip24 || room.users.size > 1 || replyTo.value?.event is ChatMessageEvent) {
-                    accountViewModel.account.sendNIP24PrivateMessage(
-                        message = newPostModel.message.text,
-                        toUsers = room.users.toList(),
-                        replyingTo = replyTo.value,
-                        mentions = null,
-                        wantsToMarkAsSensitive = false,
-                        nip94attachments = usedAttachments,
-                    )
-                } else {
-                    accountViewModel.account.sendPrivateMessage(
-                        message = newPostModel.message.text,
-                        toUser = room.users.first(),
-                        replyingTo = replyTo.value,
-                        mentions = null,
-                        wantsToMarkAsSensitive = false,
-                        nip94attachments = usedAttachments,
-                    )
-                }
+                accountViewModel.deleteDraft(newPostModel.draftTag)
 
                 newPostModel.message = TextFieldValue("")
+
                 replyTo.value = null
                 feedViewModel.sendToTop()
             }
         }
+    }
+}
+
+private fun innerSendPost(
+    newPostModel: NewPostViewModel,
+    room: ChatroomKey,
+    replyTo: MutableState<Note?>,
+    accountViewModel: AccountViewModel,
+    dTag: String?,
+) {
+    val urls = findURLs(newPostModel.message.text)
+    val usedAttachments = newPostModel.nip94attachments.filter { it.urls().intersect(urls.toSet()).isNotEmpty() }
+
+    if (newPostModel.nip24 || room.users.size > 1 || replyTo.value?.event is ChatMessageEvent) {
+        accountViewModel.account.sendNIP24PrivateMessage(
+            message = newPostModel.message.text,
+            toUsers = room.users.toList(),
+            replyingTo = replyTo.value,
+            mentions = null,
+            wantsToMarkAsSensitive = false,
+            nip94attachments = usedAttachments,
+            draftTag = dTag,
+        )
+    } else {
+        accountViewModel.account.sendPrivateMessage(
+            message = newPostModel.message.text,
+            toUser = room.users.first(),
+            replyingTo = replyTo.value,
+            mentions = null,
+            wantsToMarkAsSensitive = false,
+            nip94attachments = usedAttachments,
+            draftTag = dTag,
+        )
     }
 }
 
@@ -491,6 +528,9 @@ fun ShowUserSuggestionList(
                 key = { _, item -> item.pubkeyHex },
             ) { _, item ->
                 UserLine(item, accountViewModel) { channelScreenModel.autocompleteWithUser(item) }
+                HorizontalDivider(
+                    thickness = DividerThickness,
+                )
             }
         }
     }
@@ -548,7 +588,7 @@ fun ChatroomHeader(
     room: ChatroomKey,
     modifier: Modifier = StdPadding,
     accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
+    onClick: () -> Unit,
 ) {
     if (room.users.size == 1) {
         LoadUser(baseUserHex = room.users.first(), accountViewModel) { baseUser ->
@@ -557,7 +597,7 @@ fun ChatroomHeader(
                     baseUser = baseUser,
                     modifier = modifier,
                     accountViewModel = accountViewModel,
-                    nav = nav,
+                    onClick = onClick,
                 )
             }
         }
@@ -566,7 +606,7 @@ fun ChatroomHeader(
             room = room,
             modifier = modifier,
             accountViewModel = accountViewModel,
-            nav = nav,
+            onClick = onClick,
         )
     }
 }
@@ -576,13 +616,13 @@ fun ChatroomHeader(
     baseUser: User,
     modifier: Modifier = StdPadding,
     accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
+    onClick: () -> Unit,
 ) {
     Column(
         modifier =
             Modifier.fillMaxWidth()
                 .clickable(
-                    onClick = { nav("User/${baseUser.pubkeyHex}") },
+                    onClick = onClick,
                 ),
     ) {
         Column(
@@ -598,14 +638,9 @@ fun ChatroomHeader(
 
                 Column(modifier = Modifier.padding(start = 10.dp)) {
                     UsernameDisplay(baseUser)
-                    ObserveDisplayNip05Status(baseUser, accountViewModel = accountViewModel, nav = nav)
                 }
             }
         }
-
-        HorizontalDivider(
-            thickness = DividerThickness,
-        )
     }
 }
 
@@ -614,12 +649,10 @@ fun GroupChatroomHeader(
     room: ChatroomKey,
     modifier: Modifier = StdPadding,
     accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
+    onClick: () -> Unit,
 ) {
-    val expanded = remember { mutableStateOf(false) }
-
     Column(
-        modifier = Modifier.fillMaxWidth().clickable { expanded.value = !expanded.value },
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
     ) {
         Column(
             verticalArrangement = Arrangement.Center,
@@ -637,15 +670,7 @@ fun GroupChatroomHeader(
                     DisplayUserSetAsSubject(room, accountViewModel, FontWeight.Normal)
                 }
             }
-
-            if (expanded.value) {
-                LongRoomHeader(room = room, accountViewModel = accountViewModel, nav = nav)
-            }
         }
-
-        HorizontalDivider(
-            thickness = DividerThickness,
-        )
     }
 }
 
@@ -806,6 +831,9 @@ fun LongRoomHeader(
                         overallModifier = lineModifier,
                         accountViewModel = accountViewModel,
                         nav = nav,
+                    )
+                    HorizontalDivider(
+                        thickness = DividerThickness,
                     )
                 }
             }

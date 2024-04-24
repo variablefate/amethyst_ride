@@ -403,6 +403,7 @@ class UserMetadata {
     var banner: String? = null
     var website: String? = null
     var about: String? = null
+    var bot: Boolean? = null
 
     var nip05: String? = null
     var nip05Verified: Boolean = false
@@ -414,8 +415,7 @@ class UserMetadata {
 
     var twitter: String? = null
 
-    var updatedMetadataAt: Long = 0
-    var latestMetadata: MetadataEvent? = null
+    @Transient
     var tags: ImmutableListOfLists<String>? = null
 
     fun anyName(): String? {
@@ -432,12 +432,8 @@ class UserMetadata {
         return lud16 ?: lud06
     }
 
-    fun bestUsername(): String? {
-        return name ?: username
-    }
-
-    fun bestDisplayName(): String? {
-        return displayName
+    fun bestName(): String? {
+        return displayName ?: name ?: username
     }
 
     fun nip05(): String? {

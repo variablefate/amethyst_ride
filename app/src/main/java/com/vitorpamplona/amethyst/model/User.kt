@@ -52,6 +52,7 @@ import java.math.BigDecimal
 class User(val pubkeyHex: String) {
     var info: UserMetadata? = null
 
+    var latestMetadata: MetadataEvent? = null
     var latestContactList: ContactListEvent? = null
     var latestBookmarkList: BookmarkListEvent? = null
 
@@ -80,7 +81,7 @@ class User(val pubkeyHex: String) {
     override fun toString(): String = pubkeyHex
 
     fun toBestShortFirstName(): String {
-        val fullName = bestDisplayName() ?: bestUsername() ?: return pubkeyDisplayHex()
+        val fullName = toBestDisplayName()
 
         val names = fullName.split(' ')
 
@@ -96,23 +97,14 @@ class User(val pubkeyHex: String) {
     }
 
     fun toBestDisplayName(): String {
-        return bestDisplayName() ?: bestUsername() ?: pubkeyDisplayHex()
-    }
-
-    fun bestUsername(): String? {
-        return info?.name?.ifBlank { null } ?: info?.username?.ifBlank { null }
-    }
-
-    fun bestDisplayName(): String? {
-        return info?.displayName?.ifBlank { null }
+        return info?.bestName() ?: pubkeyDisplayHex()
     }
 
     fun nip05(): String? {
-        return info?.nip05?.ifBlank { null }
+        return info?.nip05
     }
 
     fun profilePicture(): String? {
-        if (info?.picture.isNullOrBlank()) info?.picture = null
         return info?.picture
     }
 
@@ -135,6 +127,7 @@ class User(val pubkeyHex: String) {
 
         // Update following of the current user
         liveSet?.innerFollows?.invalidateData()
+        flowSet?.follows?.invalidateData()
 
         // Update Followers of the past user list
         // Update Followers of the new contact list
@@ -285,6 +278,18 @@ class User(val pubkeyHex: String) {
         }
     }
 
+    fun removeMessage(
+        room: ChatroomKey,
+        msg: Note,
+    ) {
+        checkNotInMainThread()
+        val privateChatroom = getOrCreatePrivateChatroom(room)
+        if (msg in privateChatroom.roomMessages) {
+            privateChatroom.removeMessageSync(msg)
+            liveSet?.innerMessages?.invalidateData()
+        }
+    }
+
     fun addRelayBeingUsed(
         relay: Relay,
         eventTime: Long,
@@ -307,8 +312,6 @@ class User(val pubkeyHex: String) {
         latestMetadata: MetadataEvent,
     ) {
         info = newUserInfo
-        info?.latestMetadata = latestMetadata
-        info?.updatedMetadataAt = latestMetadata.createdAt
         info?.tags = latestMetadata.tags.toImmutableListOfLists()
         info?.cleanBlankNames()
 
@@ -364,7 +367,7 @@ class User(val pubkeyHex: String) {
     }
 
     suspend fun transientFollowerCount(): Int {
-        return LocalCache.userListCache.count { it.latestContactList?.isTaggedUser(pubkeyHex) ?: false }
+        return LocalCache.users.count { _, it -> it.latestContactList?.isTaggedUser(pubkeyHex) ?: false }
     }
 
     fun cachedFollowingKeySet(): Set<HexKey> {
@@ -388,13 +391,13 @@ class User(val pubkeyHex: String) {
     }
 
     suspend fun cachedFollowerCount(): Int {
-        return LocalCache.userListCache.count { it.latestContactList?.isTaggedUser(pubkeyHex) ?: false }
+        return LocalCache.users.count { _, it -> it.latestContactList?.isTaggedUser(pubkeyHex) ?: false }
     }
 
     fun hasSentMessagesTo(key: ChatroomKey?): Boolean {
         val messagesToUser = privateChatrooms[key] ?: return false
 
-        return messagesToUser.roomMessages.any { this.pubkeyHex == it.author?.pubkeyHex }
+        return messagesToUser.authors.any { this == it }
     }
 
     fun hasReport(
@@ -472,14 +475,16 @@ class User(val pubkeyHex: String) {
 @Stable
 class UserFlowSet(u: User) {
     // Observers line up here.
+    val follows = UserBundledRefresherFlow(u)
     val relays = UserBundledRefresherFlow(u)
 
     fun isInUse(): Boolean {
-        return relays.stateFlow.subscriptionCount.value > 0
+        return relays.stateFlow.subscriptionCount.value > 0 || follows.stateFlow.subscriptionCount.value > 0
     }
 
     fun destroy() {
         relays.destroy()
+        follows.destroy()
     }
 }
 

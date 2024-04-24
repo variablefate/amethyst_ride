@@ -280,6 +280,7 @@ anz der Bedingungen ist erforderlich</string>
     <string name="report_dialog_title">Blockieren und melden</string>
     <string name="block_only">Blockieren</string>
     <string name="bookmarks">Lesezeichen</string>
+    <string name="drafts">Entwürfe</string>
     <string name="private_bookmarks">Private Lesezeichen</string>
     <string name="public_bookmarks">Öffentliche Lesezeichen</string>
     <string name="add_to_private_bookmarks">Zu den privaten Lesezeichen hinzufügen</string>
@@ -444,6 +445,8 @@ anz der Bedingungen ist erforderlich</string>
     <string name="connectivity_type_always">Immer</string>
     <string name="connectivity_type_wifi_only">Nur WLAN</string>
     <string name="connectivity_type_never">Nie</string>
+    <string name="ui_feature_set_type_complete">Fertig</string>
+    <string name="ui_feature_set_type_simplified">Vereinfacht</string>
     <string name="system">System</string>
     <string name="light">Hell</string>
     <string name="dark">Dunkel</string>
@@ -455,6 +458,8 @@ anz der Bedingungen ist erforderlich</string>
     <string name="automatically_show_url_preview">URL-Vorschau automatisch anzeigen</string>
     <string name="automatically_hide_nav_bars">Immersives Scrollen</string>
     <string name="automatically_hide_nav_bars_description">Navigationsleisten beim Scrollen ausblenden</string>
+    <string name="ui_style">UI-Modus</string>
+    <string name="ui_style_description">Wählen Sie den Beitragsstil</string>
     <string name="load_image">Bild laden</string>
     <string name="spamming_users">Spammer</string>
     <string name="muted_button">Stummgeschaltet. Drücken, um Ton einzuschalten</string>
@@ -559,11 +564,16 @@ anz der Bedingungen ist erforderlich</string>
     <string name="could_not_resolve_check_if_you_are_connected_if_the_server_is_up_and_if_the_lightning_address_is_correct_exception">Konnte %1$s nicht auflösen. Überprüfen Sie, ob Sie verbunden sind, ob der Server online ist und ob die Lightning-Adresse %2$s korrekt ist.\n\nAusnahme war: %3$s</string>
     <string name="could_not_fetch_invoice_from">Konnte Rechnung nicht von %1$s abholen</string>
     <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup">Fehler beim analysieren von JSON aus der Lightning-Adresse. Überprüfen Sie die Lightning-Konfiguration des Benutzers</string>
+    <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup_with_user">Fehler beim Parsen von JSON von %1$s. Überprüfen Sie die Blitzeinrichtung des Benutzers</string>
     <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration">Callback-URL nicht in der Serverkonfiguration der Lightning-Adresse des Benutzers gefunden</string>
+    <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration_with_user">Callback-URL aus %1$s Antwort nicht gefunden</string>
     <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup">Fehler beim Parsen von JSON aus der Rechnungsabruf der Lightning-Adresse. Überprüfen Sie die Lightning-Konfiguration des Benutzers</string>
+    <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup_with_user">Fehler beim Parsen von JSON von %1$s. Überprüfen Sie die Blitzeinrichtung des Benutzers</string>
     <string name="incorrect_invoice_amount_sats_from_it_should_have_been">Falscher Rechnungsbetrag (%1$s Sats) von %2$s. Er hätte %3$s sein sollen</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error">Konnte keine Lightning-Rechnung erstellen, bevor der Zap gesendet wurde. Die Lightning-Wallet des Empfängers hat folgenden Fehler gesendet: %1$s</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error_with_user">Blitzrechnung konnte nicht erstellt werden. Nachricht von %1$s: %2$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json">Konnte keine Lightning-Rechnung erstellen, bevor der Zap gesendet wurde. Element pr wurde nicht in der resultierenden JSON gefunden.</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json_with_user">Kann keine Blitzrechnung von %1$s erstellen: Element pr nicht im resultierenden JSON gefunden.</string>
     <string name="read_only_user">Nur-Lese-Benutzer</string>
     <string name="no_reactions_setup">Keine Reaktionen eingerichtet</string>
     <string name="select_push_server">Einen Push-Benachrichtigungsanbieter auswählen</string>
@@ -621,6 +631,7 @@ anz der Bedingungen ist erforderlich</string>
     <string name="server_did_not_provide_a_url_after_uploading">Der Server hat nach dem Hochladen keine URL angegeben</string>
     <string name="could_not_download_from_the_server">Hochgeladene Medien konnten nicht vom Server heruntergeladen werden</string>
     <string name="could_not_prepare_local_file_to_upload">Lokale Datei konnte nicht zum Hochladen vorbereitet werden: %1$s</string>
+    <string name="edit_draft">Entwurf bearbeiten</string>
     <string name="login_with_qr_code">Einloggen mit QR-Code</string>
     <string name="route">Route</string>
     <string name="route_home">Startseite</string>
@@ -692,4 +703,10 @@ anz der Bedingungen ist erforderlich</string>
     <string name="accessibility_play_username">Benutzernamen als Audio abspielen</string>
     <string name="accessibility_scan_qr_code">QR-Code scannen</string>
     <string name="accessibility_navigate_to_alby">Navigieren Sie zum Drittanbieter-Wallet-Anbieter Alby</string>
+    <string name="it_s_not_possible_to_reply_to_a_draft_note">Es ist nicht möglich, auf einen Entwurf zu antworten</string>
+    <string name="it_s_not_possible_to_quote_to_a_draft_note">Es ist nicht möglich, einen Entwurf zu zitieren</string>
+    <string name="it_s_not_possible_to_react_to_a_draft_note">Es ist nicht möglich, auf einen Entwurf zu reagieren</string>
+    <string name="it_s_not_possible_to_zap_to_a_draft_note">Es ist nicht möglich, zap Zahlung an einen Entwurf senden</string>
+    <string name="draft_note">Entwurf</string>
+    <string name="load_from_text">Aus Nachricht laden</string>
 </resources>

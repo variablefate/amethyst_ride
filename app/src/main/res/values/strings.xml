@@ -293,6 +293,7 @@
     <string name="block_only">Block</string>
 
     <string name="bookmarks">Bookmarks</string>
+    <string name="drafts">Drafts</string>
     <string name="private_bookmarks">Private Bookmarks</string>
     <string name="public_bookmarks">Public Bookmarks</string>
     <string name="add_to_private_bookmarks">Add to Private Bookmarks</string>
@@ -505,6 +506,9 @@
     <string name="connectivity_type_wifi_only">Wifi-only</string>
     <string name="connectivity_type_never">Never</string>
 
+    <string name="ui_feature_set_type_complete">Complete</string>
+    <string name="ui_feature_set_type_simplified">Simplified</string>
+
     <string name="system">System</string>
     <string name="light">Light</string>
     <string name="dark">Dark</string>
@@ -516,6 +520,10 @@
     <string name="automatically_show_url_preview">URL Preview</string>
     <string name="automatically_hide_nav_bars">Immersive Scrolling</string>
     <string name="automatically_hide_nav_bars_description">Hide Nav Bars when Scrolling</string>
+
+    <string name="ui_style">UI Mode</string>
+    <string name="ui_style_description">Choose the post style</string>
+
     <string name="load_image">Load Image</string>
 
     <string name="spamming_users">Spammers</string>
@@ -651,11 +659,22 @@
     <string name="could_not_resolve_check_if_you_are_connected_if_the_server_is_up_and_if_the_lightning_address_is_correct_exception">Could not resolve %1$s. Check if you are connected, if the server is up and if the lightning address %2$s is correct.\n\nException was: %3$s</string>
     <string name="could_not_fetch_invoice_from">Could not fetch invoice from %1$s</string>
     <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup">Error Parsing JSON from Lightning Address. Check the user\'s lightning setup</string>
+    <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup_with_user">Error Parsing JSON from %1$s. Check the user\'s lightning setup</string>
+
     <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration">Callback URL not found in the User\'s lightning address server configuration</string>
+    <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration_with_user">Callback URL not found from %1$s\'s response</string>
+
     <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup">Error Parsing JSON from Lightning Address\'s invoice fetch. Check the user\'s lightning setup</string>
+    <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup_with_user">Error Parsing JSON from %1$s\'s invoice fetch. Check the user\'s lightning setup</string>
+
     <string name="incorrect_invoice_amount_sats_from_it_should_have_been">Incorrect invoice amount (%1$s sats) from %2$s. It should have been %3$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error">Unable to create a lightning invoice before sending the zap. The receiver\'s lightning wallet sent the following error: %1$s</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error_with_user">Unable to create a lightning invoice. Message from %1$s: %2$s</string>
+
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json">Unable to create a lightning invoice before sending the zap. Element pr not found in the resulting JSON.</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json_with_user">Unable to create a lightning invoice from %1$s: Element pr not found in the resulting JSON.</string>
+
+
     <string name="read_only_user">Read-only user</string>
     <string name="no_reactions_setup">No reactions setup</string>
 
@@ -725,6 +744,8 @@
     <string name="server_did_not_provide_a_url_after_uploading">Server did not provide a URL after uploading</string>
     <string name="could_not_download_from_the_server">Could not download uploaded media from the server</string>
     <string name="could_not_prepare_local_file_to_upload">Could not prepare local file to upload: %1$s</string>
+
+    <string name="edit_draft">Edit draft</string>
 
     <string name="login_with_qr_code">Login with QR Code</string>
     <string name="route">Route</string>
@@ -812,4 +833,11 @@
     <string name="accessibility_play_username">Play username as audio</string>
     <string name="accessibility_scan_qr_code">Scan QR code</string>
     <string name="accessibility_navigate_to_alby">Navigate to the third-party wallet provider Alby</string>
+    <string name="it_s_not_possible_to_reply_to_a_draft_note">It\'s not possible to reply a draft note</string>
+    <string name="it_s_not_possible_to_quote_to_a_draft_note">It\'s not possible to quote a draft note</string>
+    <string name="it_s_not_possible_to_react_to_a_draft_note">It\'s not possible to react a draft note</string>
+    <string name="it_s_not_possible_to_zap_to_a_draft_note">It\'s not possible to zap a draft note</string>
+    <string name="draft_note">Draft Note</string>
+
+    <string name="load_from_text">From Msg</string>
 </resources>

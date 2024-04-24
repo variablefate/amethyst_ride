@@ -21,9 +21,7 @@
 package com.vitorpamplona.amethyst.ui.note
 
 import androidx.compose.animation.Crossfade
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,7 +34,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -49,14 +46,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment.Companion.BottomStart
+import androidx.compose.ui.Alignment.Companion.Center
+import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Alignment.Companion.TopEnd
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -73,6 +70,7 @@ import com.vitorpamplona.amethyst.model.ParticipantListBuilder
 import com.vitorpamplona.amethyst.model.User
 import com.vitorpamplona.amethyst.ui.components.SensitivityWarning
 import com.vitorpamplona.amethyst.ui.layouts.LeftPictureLayout
+import com.vitorpamplona.amethyst.ui.note.elements.BannerImage
 import com.vitorpamplona.amethyst.ui.screen.equalImmutableLists
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.ChannelHeader
@@ -82,7 +80,6 @@ import com.vitorpamplona.amethyst.ui.screen.loggedIn.LiveFlag
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.OfflineFlag
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.ScheduledFlag
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.showAmountAxis
-import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.DoubleVertSpacer
 import com.vitorpamplona.amethyst.ui.theme.HalfPadding
 import com.vitorpamplona.amethyst.ui.theme.QuoteBorder
@@ -91,7 +88,6 @@ import com.vitorpamplona.amethyst.ui.theme.Size5dp
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.StdPadding
 import com.vitorpamplona.amethyst.ui.theme.StdVertSpacer
-import com.vitorpamplona.amethyst.ui.theme.newItemBackgroundColor
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.ClassifiedsEvent
@@ -108,7 +104,6 @@ import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ChannelCardCompose(
     baseNote: Note,
@@ -116,161 +111,29 @@ fun ChannelCardCompose(
     modifier: Modifier = Modifier,
     parentBackgroundColor: MutableState<Color>? = null,
     forceEventKind: Int?,
-    showHidden: Boolean = false,
+    isHiddenFeed: Boolean = false,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    val hasEvent by baseNote.live().hasEvent.observeAsState(baseNote.event != null)
-
-    Crossfade(targetState = hasEvent, label = "ChannelCardCompose") {
-        if (it) {
-            if (forceEventKind == null || baseNote.event?.kind() == forceEventKind) {
-                CheckHiddenChannelCardCompose(
-                    baseNote,
-                    routeForLastRead,
-                    modifier,
-                    parentBackgroundColor,
-                    showHidden,
-                    accountViewModel,
-                    nav,
+    WatchNoteEvent(baseNote = baseNote, accountViewModel = accountViewModel) {
+        if (forceEventKind == null || baseNote.event?.kind() == forceEventKind) {
+            CheckHiddenFeedWatchBlockAndReport(
+                note = baseNote,
+                modifier = modifier,
+                showHidden = isHiddenFeed,
+                showHiddenWarning = false,
+                accountViewModel = accountViewModel,
+                nav = nav,
+            ) { canPreview ->
+                NormalChannelCard(
+                    baseNote = baseNote,
+                    routeForLastRead = routeForLastRead,
+                    modifier = modifier,
+                    parentBackgroundColor = parentBackgroundColor,
+                    accountViewModel = accountViewModel,
+                    nav = nav,
                 )
             }
-        } else {
-            LongPressToQuickAction(baseNote = baseNote, accountViewModel = accountViewModel) { showPopup,
-                ->
-                BlankNote(
-                    remember {
-                        modifier.combinedClickable(
-                            onClick = {},
-                            onLongClick = showPopup,
-                        )
-                    },
-                    false,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun CheckHiddenChannelCardCompose(
-    note: Note,
-    routeForLastRead: String? = null,
-    modifier: Modifier = Modifier,
-    parentBackgroundColor: MutableState<Color>? = null,
-    showHidden: Boolean,
-    accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
-) {
-    if (showHidden) {
-        val state by remember {
-            mutableStateOf(
-                AccountViewModel.NoteComposeReportState(),
-            )
-        }
-
-        RenderChannelCardReportState(
-            state = state,
-            note = note,
-            routeForLastRead = routeForLastRead,
-            modifier = modifier,
-            parentBackgroundColor = parentBackgroundColor,
-            accountViewModel = accountViewModel,
-            nav = nav,
-        )
-    } else {
-        val isHidden by
-            accountViewModel.account.liveHiddenUsers
-                .map { note.isHiddenFor(it) }
-                .distinctUntilChanged()
-                .observeAsState(accountViewModel.isNoteHidden(note))
-
-        Crossfade(targetState = isHidden, label = "CheckHiddenChannelCardCompose") {
-            if (!it) {
-                LoadedChannelCardCompose(
-                    note,
-                    routeForLastRead,
-                    modifier,
-                    parentBackgroundColor,
-                    accountViewModel,
-                    nav,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun LoadedChannelCardCompose(
-    note: Note,
-    routeForLastRead: String? = null,
-    modifier: Modifier = Modifier,
-    parentBackgroundColor: MutableState<Color>? = null,
-    accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
-) {
-    var state by remember {
-        mutableStateOf(
-            AccountViewModel.NoteComposeReportState(),
-        )
-    }
-
-    val scope = rememberCoroutineScope()
-
-    WatchForReports(note, accountViewModel) { newState ->
-        if (state != newState) {
-            scope.launch(Dispatchers.Main) { state = newState }
-        }
-    }
-
-    Crossfade(targetState = state, label = "CheckHiddenChannelCardCompose") {
-        RenderChannelCardReportState(
-            it,
-            note,
-            routeForLastRead,
-            modifier,
-            parentBackgroundColor,
-            accountViewModel,
-            nav,
-        )
-    }
-}
-
-@Composable
-fun RenderChannelCardReportState(
-    state: AccountViewModel.NoteComposeReportState,
-    note: Note,
-    routeForLastRead: String? = null,
-    modifier: Modifier = Modifier,
-    parentBackgroundColor: MutableState<Color>? = null,
-    accountViewModel: AccountViewModel,
-    nav: (String) -> Unit,
-) {
-    var showReportedNote by remember { mutableStateOf(false) }
-
-    Crossfade(
-        targetState = !state.isAcceptable && !showReportedNote,
-        label = "CheckHiddenChannelCardCompose",
-    ) { showHiddenNote ->
-        if (showHiddenNote) {
-            HiddenNote(
-                state.relevantReports,
-                state.isHiddenAuthor,
-                accountViewModel,
-                modifier,
-                false,
-                nav,
-                onClick = { showReportedNote = true },
-            )
-        } else {
-            NormalChannelCard(
-                note,
-                routeForLastRead,
-                modifier,
-                parentBackgroundColor,
-                accountViewModel,
-                nav,
-            )
         }
     }
 }
@@ -307,41 +170,13 @@ private fun CheckNewAndRenderChannelCard(
     showPopup: () -> Unit,
     nav: (String) -> Unit,
 ) {
-    val newItemColor = MaterialTheme.colorScheme.newItemBackgroundColor
-    val defaultBackgroundColor = MaterialTheme.colorScheme.background
     val backgroundColor =
-        remember {
-            mutableStateOf<Color>(
-                parentBackgroundColor?.value ?: defaultBackgroundColor,
-            )
-        }
-
-    LaunchedEffect(key1 = routeForLastRead, key2 = parentBackgroundColor?.value) {
-        routeForLastRead?.let {
-            accountViewModel.loadAndMarkAsRead(routeForLastRead, baseNote.createdAt()) { isNew ->
-                val newBackgroundColor =
-                    if (isNew) {
-                        if (parentBackgroundColor != null) {
-                            newItemColor.compositeOver(parentBackgroundColor.value)
-                        } else {
-                            newItemColor.compositeOver(defaultBackgroundColor)
-                        }
-                    } else {
-                        parentBackgroundColor?.value ?: defaultBackgroundColor
-                    }
-
-                if (newBackgroundColor != backgroundColor.value) {
-                    launch(Dispatchers.Main) { backgroundColor.value = newBackgroundColor }
-                }
-            }
-        }
-            ?: run {
-                val newBackgroundColor = parentBackgroundColor?.value ?: defaultBackgroundColor
-                if (newBackgroundColor != backgroundColor.value) {
-                    launch(Dispatchers.Main) { backgroundColor.value = newBackgroundColor }
-                }
-            }
-    }
+        calculateBackgroundColor(
+            createdAt = baseNote.createdAt(),
+            routeForLastRead = routeForLastRead,
+            parentBackgroundColor = parentBackgroundColor,
+            accountViewModel = accountViewModel,
+        )
 
     ClickableNote(
         baseNote = baseNote,
@@ -365,7 +200,7 @@ fun InnerChannelCardWithReactions(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    when (remember { baseNote.event }) {
+    when (baseNote.event) {
         is LiveActivitiesEvent -> {
             InnerCardRow(baseNote, accountViewModel, nav)
         }
@@ -399,10 +234,6 @@ fun InnerCardRow(
             )
         }
     }
-
-    HorizontalDivider(
-        thickness = DividerThickness,
-    )
 }
 
 @Composable
@@ -427,7 +258,7 @@ private fun RenderNoteRow(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    when (remember { baseNote.event }) {
+    when (baseNote.event) {
         is LiveActivitiesEvent -> {
             RenderLiveActivityThumb(baseNote, accountViewModel, nav)
         }
@@ -477,29 +308,29 @@ fun RenderClassifiedsThumb(
                 ),
             )
 
-    RenderClassifiedsThumb(card, baseNote.author)
+    InnerRenderClassifiedsThumb(card, baseNote)
 }
 
 @Preview
 @Composable
 fun RenderClassifiedsThumbPreview() {
     Surface(Modifier.size(200.dp)) {
-        RenderClassifiedsThumb(
+        InnerRenderClassifiedsThumb(
             card =
                 ClassifiedsThumb(
                     image = null,
                     title = "Like New",
                     price = Price("800000", "SATS", null),
                 ),
-            author = null,
+            note = Note("hex"),
         )
     }
 }
 
 @Composable
-fun RenderClassifiedsThumb(
+fun InnerRenderClassifiedsThumb(
     card: ClassifiedsThumb,
-    author: User?,
+    note: Note,
 ) {
     Box(
         Modifier.fillMaxWidth().aspectRatio(1f),
@@ -512,8 +343,7 @@ fun RenderClassifiedsThumb(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-        }
-            ?: run { author?.let { DisplayAuthorBanner(it) } }
+        } ?: run { DisplayAuthorBanner(note) }
 
         Row(
             Modifier.fillMaxWidth().background(Color.Black.copy(0.6f)).padding(Size5dp),
@@ -621,8 +451,7 @@ fun RenderLiveActivityThumb(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize().clip(QuoteBorder),
                 )
-            }
-                ?: run { baseNote.author?.let { DisplayAuthorBanner(it) } }
+            } ?: run { DisplayAuthorBanner(baseNote) }
 
             Box(Modifier.padding(10.dp)) {
                 Crossfade(targetState = card.status, label = "RenderLiveActivityThumb") {
@@ -668,12 +497,11 @@ fun RenderLiveActivityThumb(
         Spacer(modifier = DoubleVertSpacer)
 
         ChannelHeader(
-            channelHex = remember { baseNote.idHex },
+            channelHex = baseNote.idHex,
             showVideo = false,
-            showBottomDiviser = false,
             showFlag = false,
             sendToChannel = true,
-            modifier = remember { Modifier.padding(start = 0.dp, end = 0.dp, top = 5.dp, bottom = 5.dp) },
+            modifier = Modifier,
             accountViewModel = accountViewModel,
             nav = nav,
         )
@@ -731,8 +559,7 @@ fun RenderCommunitiesThumb(
                         modifier = Modifier.fillMaxSize().clip(QuoteBorder),
                     )
                 }
-            }
-                ?: run { baseNote.author?.let { DisplayAuthorBanner(it) } }
+            } ?: run { DisplayAuthorBanner(baseNote) }
         },
         onTitleRow = {
             Text(
@@ -952,16 +779,13 @@ fun RenderChannelThumb(
     LeftPictureLayout(
         onImage = {
             cover?.let {
-                Box(contentAlignment = BottomStart) {
-                    AsyncImage(
-                        model = it,
-                        contentDescription = null,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().clip(QuoteBorder),
-                    )
-                }
-            }
-                ?: run { baseNote.author?.let { DisplayAuthorBanner(it) } }
+                AsyncImage(
+                    model = it,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().clip(QuoteBorder),
+                )
+            } ?: run { DisplayAuthorBanner(baseNote) }
         },
         onTitleRow = {
             Text(
@@ -1001,7 +825,7 @@ fun RenderChannelThumb(
         onBottomRow = {
             if (participantUsers.isNotEmpty()) {
                 Spacer(modifier = StdVertSpacer)
-                Row { Gallery(participantUsers, accountViewModel) }
+                Gallery(participantUsers, accountViewModel)
             }
         },
     )
@@ -1018,27 +842,18 @@ fun Gallery(
 
         if (users.size > 6) {
             Text(
-                text = remember(users) { " + " + (showCount(users.size - 6)) },
+                text = " + " + showCount(users.size - 6),
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.align(CenterVertically),
             )
         }
     }
 }
 
 @Composable
-fun DisplayAuthorBanner(author: User) {
-    val picture by
-        author
-            .live()
-            .metadata
-            .map { it.user.info?.banner?.ifBlank { null } ?: it.user.info?.picture?.ifBlank { null } }
-            .observeAsState()
-
-    AsyncImage(
-        model = picture,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().clip(QuoteBorder),
-    )
+fun DisplayAuthorBanner(note: Note) {
+    WatchAuthor(note) {
+        BannerImage(it, Modifier.fillMaxSize().clip(QuoteBorder))
+    }
 }

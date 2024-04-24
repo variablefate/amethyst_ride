@@ -275,6 +275,7 @@
     <string name="report_dialog_title">Tiltás és Jelentés</string>
     <string name="block_only">Tiltás</string>
     <string name="bookmarks">Könyvjelzők</string>
+    <string name="drafts">Piszkozatok</string>
     <string name="private_bookmarks">Privát Könyvjelzők</string>
     <string name="public_bookmarks">Publikus Könyvjelzők</string>
     <string name="add_to_private_bookmarks">Hozzáadás a Privát Könyvjelzőimhez</string>
@@ -440,6 +441,8 @@
     <string name="connectivity_type_always">Mindig</string>
     <string name="connectivity_type_wifi_only">Csak WIFI</string>
     <string name="connectivity_type_never">Soha</string>
+    <string name="ui_feature_set_type_complete">Teljes</string>
+    <string name="ui_feature_set_type_simplified">Egyszerűsített</string>
     <string name="system">Rendszer</string>
     <string name="light">Világos</string>
     <string name="dark">Sötét</string>
@@ -451,6 +454,8 @@
     <string name="automatically_show_url_preview">Az URL előnézetének automatikus megjelenítése</string>
     <string name="automatically_hide_nav_bars">Magával ragadó görgetés</string>
     <string name="automatically_hide_nav_bars_description">Navigációs sáv görgetés közbeni elrejtése</string>
+    <string name="ui_style">Felület típusa</string>
+    <string name="ui_style_description">Válaszd ki a bejegyzés stílusát</string>
     <string name="load_image">Kép Betöltése</string>
     <string name="spamming_users">Spammerek</string>
     <string name="muted_button">Lenémítva. Kattínts a feloldásért</string>
@@ -555,11 +560,16 @@
     <string name="could_not_resolve_check_if_you_are_connected_if_the_server_is_up_and_if_the_lightning_address_is_correct_exception">Nem sikerült megoldani: %1$s. Ellenőrizd, hogy csatlakozol-e, működik-e a szerver, és hogy a %2$s lightning cím helyes-e.\n\nKivétel: %3$s</string>
     <string name="could_not_fetch_invoice_from">Nem sikerült a számlát a következőtől: %1$s lekérni</string>
     <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup">Hiba a Lightning-címből származó JSON elemzésekor. Ellenőrizd a felhasználó Lightning beállítását</string>
+    <string name="error_parsing_json_from_lightning_address_check_the_user_s_lightning_setup_with_user">Hiba történt a %1$s JSON elemzése során. Ellenőrizd a felhasználó Lightning beállítását</string>
     <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration">A visszahívási URL a felhasználó Lightning címszerver konfigurációjában nem található</string>
+    <string name="callback_url_not_found_in_the_user_s_lightning_address_server_configuration_with_user">A visszahívási URL a %1$s válaszából nem található</string>
     <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup">Hiba a Lightning cím számlalekérése során származó JSON elemzésekor. Ellenőrizd a felhasználó Lightning beállítását</string>
+    <string name="error_parsing_json_from_lightning_address_s_invoice_fetch_check_the_user_s_lightning_setup_with_user">Hiba történt a %1$s számlalekérésnek a JSON elemzése során. Ellenőrizd a felhasználó Lightning beállítását</string>
     <string name="incorrect_invoice_amount_sats_from_it_should_have_been">Helytelen számlaösszeg (%1$s sats) a következőtől: %2$s. %3$s kellett volna</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error">Nem sikerült a zap elküldése előtt lightning számlát készíteni. A fogadó fél lightning tárcája a következő hibát küldte: %1$s</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_the_receiver_s_lightning_wallet_sent_the_following_error_with_user">Nem sikerült Lightning számlát létrehozni. Üzenet a következőtől %1$s: %2$s</string>
     <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json">Nem sikerült a zap elküldése előtt lightning számlát készíteni. A kapott JSON-ban a pr elem nem található.</string>
+    <string name="unable_to_create_a_lightning_invoice_before_sending_the_zap_element_pr_not_found_in_the_resulting_json_with_user">Nem lehet villámszámlát létrehozni a következőből: %1$s: A kapott JSON-ban nem található fizetési kérés elem.</string>
     <string name="read_only_user">Csak olvasható felhasználó</string>
     <string name="no_reactions_setup">Nincs reakcióbeállítás</string>
     <string name="select_push_server">Válassz ki egy UnifiedPush alkalmazást</string>
@@ -617,6 +627,7 @@
     <string name="server_did_not_provide_a_url_after_uploading">A szerver a feltöltés után nem adott URL-t</string>
     <string name="could_not_download_from_the_server">Nem sikerült a szerverről a feltöltött médiát letölteni</string>
     <string name="could_not_prepare_local_file_to_upload">Nem sikerült előkészíteni a helyi fájlt a feltöltésre: %1$s</string>
+    <string name="edit_draft">Piszkozat szerkesztése</string>
     <string name="login_with_qr_code">Bejelentkezés QR kóddal</string>
     <string name="route">Útvonal</string>
     <string name="route_home">Főoldal</string>
@@ -688,4 +699,10 @@
     <string name="accessibility_play_username">Felhasználónév lejátszása hangként</string>
     <string name="accessibility_scan_qr_code">QR-kód beolvasása</string>
     <string name="accessibility_navigate_to_alby">Keresd fel a harmadik féltől származó pénztárcaszolgáltatót, az Alby-t</string>
+    <string name="it_s_not_possible_to_reply_to_a_draft_note">A bejegyzésvázlatra nem lehet válaszolni</string>
+    <string name="it_s_not_possible_to_quote_to_a_draft_note">A bejegyzésvázlatot nem lehet idézni</string>
+    <string name="it_s_not_possible_to_react_to_a_draft_note">A bejegyzésvázlatra nem lehet reagálni</string>
+    <string name="it_s_not_possible_to_zap_to_a_draft_note">A bejegyzésvázlatra nem lehet zap-pelni</string>
+    <string name="draft_note">Bejegyzéspiszkozat</string>
+    <string name="load_from_text">Tőle üzenet</string>
 </resources>

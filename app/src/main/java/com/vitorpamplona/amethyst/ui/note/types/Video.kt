@@ -43,10 +43,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.BaseMediaContent
-import com.vitorpamplona.amethyst.commons.MediaUrlImage
-import com.vitorpamplona.amethyst.commons.MediaUrlVideo
-import com.vitorpamplona.amethyst.commons.RichTextParser
+import com.vitorpamplona.amethyst.commons.richtext.BaseMediaContent
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlImage
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlVideo
+import com.vitorpamplona.amethyst.commons.richtext.RichTextParser
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.ui.components.SensitivityWarning
 import com.vitorpamplona.amethyst.ui.components.TranslatableRichTextViewer
@@ -135,8 +135,9 @@ fun VideoDisplay(
                             contentScale = ContentScale.FillWidth,
                             modifier = MaterialTheme.colorScheme.imageModifier,
                         )
+                    } ?: run {
+                        DefaultImageHeader(note, accountViewModel)
                     }
-                        ?: DefaultImageHeader(note, accountViewModel)
                 }
             } else {
                 ZoomableContentView(
@@ -163,6 +164,7 @@ fun VideoDisplay(
                 TranslatableRichTextViewer(
                     content = it,
                     canPreview = canPreview && !makeItShort,
+                    quotesLeft = 1,
                     modifier = Modifier.fillMaxWidth(),
                     tags = tags,
                     backgroundColor = backgroundColor,

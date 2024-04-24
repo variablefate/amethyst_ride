@@ -53,7 +53,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
@@ -65,6 +64,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -101,7 +101,7 @@ import androidx.lifecycle.distinctUntilChanged
 import androidx.lifecycle.map
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.MediaUrlVideo
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlVideo
 import com.vitorpamplona.amethyst.model.AddressableNote
 import com.vitorpamplona.amethyst.model.Channel
 import com.vitorpamplona.amethyst.model.LiveActivitiesChannel
@@ -133,14 +133,12 @@ import com.vitorpamplona.amethyst.ui.note.UsernameDisplay
 import com.vitorpamplona.amethyst.ui.note.ZapReaction
 import com.vitorpamplona.amethyst.ui.note.elements.DisplayUncitedHashtags
 import com.vitorpamplona.amethyst.ui.note.elements.MoreOptionsButton
-import com.vitorpamplona.amethyst.ui.note.timeAgo
 import com.vitorpamplona.amethyst.ui.note.timeAgoShort
 import com.vitorpamplona.amethyst.ui.screen.NostrChannelFeedViewModel
 import com.vitorpamplona.amethyst.ui.screen.RefreshingChatroomFeedView
 import com.vitorpamplona.amethyst.ui.screen.equalImmutableLists
 import com.vitorpamplona.amethyst.ui.theme.ButtonBorder
 import com.vitorpamplona.amethyst.ui.theme.ButtonPadding
-import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.DoubleHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.DoubleVertSpacer
 import com.vitorpamplona.amethyst.ui.theme.EditFieldBorder
@@ -148,6 +146,7 @@ import com.vitorpamplona.amethyst.ui.theme.EditFieldLeadingIconModifier
 import com.vitorpamplona.amethyst.ui.theme.EditFieldModifier
 import com.vitorpamplona.amethyst.ui.theme.EditFieldTrailingIconModifier
 import com.vitorpamplona.amethyst.ui.theme.HeaderPictureModifier
+import com.vitorpamplona.amethyst.ui.theme.RowColSpacing
 import com.vitorpamplona.amethyst.ui.theme.Size25dp
 import com.vitorpamplona.amethyst.ui.theme.Size34dp
 import com.vitorpamplona.amethyst.ui.theme.Size35dp
@@ -155,6 +154,7 @@ import com.vitorpamplona.amethyst.ui.theme.SmallBorder
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.StdPadding
 import com.vitorpamplona.amethyst.ui.theme.ZeroPadding
+import com.vitorpamplona.amethyst.ui.theme.liveStreamTag
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.events.EmptyTagList
 import com.vitorpamplona.quartz.events.LiveActivitiesEvent.Companion.STATUS_LIVE
@@ -165,8 +165,15 @@ import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.DateFormat
+import java.text.SimpleDateFormat
+import java.util.Date
 import java.util.Locale
 
 @Composable
@@ -186,6 +193,7 @@ fun ChannelScreen(
     }
 }
 
+@OptIn(FlowPreview::class)
 @Composable
 fun PrepareChannelViewModels(
     baseChannel: Channel,
@@ -288,7 +296,11 @@ fun ChannelScreen(
                 accountViewModel = accountViewModel,
                 nav = nav,
                 routeForLastRead = "Channel/${channel.idHex}",
+                avoidDraft = newPostModel.draftTag,
                 onWantsToReply = { replyTo.value = it },
+                onWantsToEditDraft = {
+                    newPostModel.load(accountViewModel, null, null, null, null, it)
+                },
             )
         }
 
@@ -298,46 +310,70 @@ fun ChannelScreen(
 
         val scope = rememberCoroutineScope()
 
+        LaunchedEffect(Unit) {
+            launch(Dispatchers.IO) {
+                newPostModel.draftTextChanges
+                    .receiveAsFlow()
+                    .debounce(1000)
+                    .collectLatest {
+                        innerSendPost(replyTo, channel, newPostModel, accountViewModel, newPostModel.draftTag)
+                    }
+            }
+        }
+
         // LAST ROW
         EditFieldRow(newPostModel, isPrivate = false, accountViewModel = accountViewModel) {
             scope.launch(Dispatchers.IO) {
-                val tagger =
-                    NewMessageTagger(
-                        message = newPostModel.message.text,
-                        pTags = listOfNotNull(replyTo.value?.author),
-                        eTags = listOfNotNull(replyTo.value),
-                        channelHex = channel.idHex,
-                        dao = accountViewModel,
-                    )
-                tagger.run()
-
-                val urls = findURLs(tagger.message)
-                val usedAttachments = newPostModel.nip94attachments.filter { it.urls().intersect(urls.toSet()).isNotEmpty() }
-
-                if (channel is PublicChatChannel) {
-                    accountViewModel.account.sendChannelMessage(
-                        message = tagger.message,
-                        toChannel = channel.idHex,
-                        replyTo = tagger.eTags,
-                        mentions = tagger.pTags,
-                        wantsToMarkAsSensitive = false,
-                        nip94attachments = usedAttachments,
-                    )
-                } else if (channel is LiveActivitiesChannel) {
-                    accountViewModel.account.sendLiveMessage(
-                        message = tagger.message,
-                        toChannel = channel.address,
-                        replyTo = tagger.eTags,
-                        mentions = tagger.pTags,
-                        wantsToMarkAsSensitive = false,
-                        nip94attachments = usedAttachments,
-                    )
-                }
+                innerSendPost(replyTo, channel, newPostModel, accountViewModel, null)
                 newPostModel.message = TextFieldValue("")
                 replyTo.value = null
+                accountViewModel.deleteDraft(newPostModel.draftTag)
                 feedViewModel.sendToTop()
             }
         }
+    }
+}
+
+private suspend fun innerSendPost(
+    replyTo: MutableState<Note?>,
+    channel: Channel,
+    newPostModel: NewPostViewModel,
+    accountViewModel: AccountViewModel,
+    draftTag: String?,
+) {
+    val tagger =
+        NewMessageTagger(
+            message = newPostModel.message.text,
+            pTags = listOfNotNull(replyTo.value?.author),
+            eTags = listOfNotNull(replyTo.value),
+            channelHex = channel.idHex,
+            dao = accountViewModel,
+        )
+    tagger.run()
+
+    val urls = findURLs(tagger.message)
+    val usedAttachments = newPostModel.nip94attachments.filter { it.urls().intersect(urls.toSet()).isNotEmpty() }
+
+    if (channel is PublicChatChannel) {
+        accountViewModel.account.sendChannelMessage(
+            message = tagger.message,
+            toChannel = channel.idHex,
+            replyTo = tagger.eTags,
+            mentions = tagger.pTags,
+            wantsToMarkAsSensitive = false,
+            nip94attachments = usedAttachments,
+            draftTag = draftTag,
+        )
+    } else if (channel is LiveActivitiesChannel) {
+        accountViewModel.account.sendLiveMessage(
+            message = tagger.message,
+            toChannel = channel.address,
+            replyTo = tagger.eTags,
+            mentions = tagger.pTags,
+            wantsToMarkAsSensitive = false,
+            nip94attachments = usedAttachments,
+            draftTag = draftTag,
+        )
     }
 }
 
@@ -365,6 +401,7 @@ fun DisplayReplyingToNote(
                     accountViewModel = accountViewModel,
                     nav = nav,
                     onWantsToReply = {},
+                    onWantsToEditDraft = {},
                 )
             }
 
@@ -554,7 +591,6 @@ fun MyTextField(
 fun ChannelHeader(
     channelNote: Note,
     showVideo: Boolean,
-    showBottomDiviser: Boolean,
     sendToChannel: Boolean,
     modifier: Modifier = StdPadding,
     accountViewModel: AccountViewModel,
@@ -565,8 +601,8 @@ fun ChannelHeader(
         ChannelHeader(
             channelHex = it,
             showVideo = showVideo,
-            showBottomDiviser = showBottomDiviser,
             sendToChannel = sendToChannel,
+            modifier = modifier,
             accountViewModel = accountViewModel,
             nav = nav,
         )
@@ -577,7 +613,6 @@ fun ChannelHeader(
 fun ChannelHeader(
     channelHex: String,
     showVideo: Boolean,
-    showBottomDiviser: Boolean,
     showFlag: Boolean = true,
     sendToChannel: Boolean = false,
     modifier: Modifier = StdPadding,
@@ -588,7 +623,6 @@ fun ChannelHeader(
         ChannelHeader(
             it,
             showVideo,
-            showBottomDiviser,
             showFlag,
             sendToChannel,
             modifier,
@@ -602,7 +636,6 @@ fun ChannelHeader(
 fun ChannelHeader(
     baseChannel: Channel,
     showVideo: Boolean,
-    showBottomDiviser: Boolean,
     showFlag: Boolean = true,
     sendToChannel: Boolean = false,
     modifier: Modifier = StdPadding,
@@ -638,12 +671,6 @@ fun ChannelHeader(
                 LongChannelHeader(baseChannel = baseChannel, accountViewModel = accountViewModel, nav = nav)
             }
         }
-
-        if (showBottomDiviser) {
-            HorizontalDivider(
-                thickness = DividerThickness,
-            )
-        }
     }
 }
 
@@ -668,24 +695,26 @@ fun ShowVideoStreaming(
 
             streamingInfo?.let { event ->
                 val url = remember(streamingInfo) { event.streaming() }
-                val artworkUri = remember(streamingInfo) { event.image() }
-                val title = remember(streamingInfo) { baseChannel.toBestDisplayName() }
-
-                val author = remember(streamingInfo) { baseChannel.creatorName() }
 
                 url?.let {
                     CrossfadeCheckIfUrlIsOnline(url, accountViewModel) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = remember { Modifier.heightIn(max = 300.dp) },
+                            horizontalArrangement = Arrangement.Center,
+                            modifier =
+                                remember {
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(min = 50.dp, max = 300.dp)
+                                },
                         ) {
                             val zoomableUrlVideo =
-                                remember(it) {
+                                remember(streamingInfo) {
                                     MediaUrlVideo(
                                         url = url,
-                                        description = title,
-                                        artworkUri = artworkUri,
-                                        authorName = author,
+                                        description = baseChannel.toBestDisplayName(),
+                                        artworkUri = event.image(),
+                                        authorName = baseChannel.creatorName(),
                                         uri = event.toNostrUri(),
                                     )
                                 }
@@ -809,6 +838,7 @@ fun LongChannelHeader(
                 TranslatableRichTextViewer(
                     content = summary ?: stringResource(id = R.string.groups_no_descriptor),
                     canPreview = false,
+                    quotesLeft = 1,
                     tags = tags,
                     backgroundColor = background,
                     id = baseChannel.idHex,
@@ -945,21 +975,21 @@ private fun ShortChannelActionOptions(
 ) {
     LoadNote(baseNoteHex = channel.idHex, accountViewModel) {
         it?.let {
-            Spacer(modifier = StdHorzSpacer)
-            LikeReaction(
-                baseNote = it,
-                grayTint = MaterialTheme.colorScheme.onSurface,
-                accountViewModel = accountViewModel,
-                nav,
-            )
-            Spacer(modifier = StdHorzSpacer)
-            ZapReaction(
-                baseNote = it,
-                grayTint = MaterialTheme.colorScheme.onSurface,
-                accountViewModel = accountViewModel,
-                nav = nav,
-            )
-            Spacer(modifier = StdHorzSpacer)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = RowColSpacing) {
+                LikeReaction(
+                    baseNote = it,
+                    grayTint = MaterialTheme.colorScheme.onSurface,
+                    accountViewModel = accountViewModel,
+                    nav,
+                )
+                ZapReaction(
+                    baseNote = it,
+                    grayTint = MaterialTheme.colorScheme.onSurface,
+                    accountViewModel = accountViewModel,
+                    nav = nav,
+                )
+                Spacer(modifier = StdHorzSpacer)
+            }
         }
     }
 
@@ -1096,20 +1126,19 @@ fun OfflineFlag() {
 
 @Composable
 fun ScheduledFlag(starts: Long?) {
-    val context = LocalContext.current
-    val startsIn = starts?.let { timeAgo(it, context) }
+    val startsIn =
+        starts?.let {
+            SimpleDateFormat.getDateTimeInstance(
+                DateFormat.SHORT,
+                DateFormat.SHORT,
+            ).format(Date(starts * 1000))
+        }
 
     Text(
         text = startsIn ?: stringResource(id = R.string.live_stream_planned_tag),
         color = Color.White,
         fontWeight = FontWeight.Bold,
-        modifier =
-            remember {
-                Modifier
-                    .clip(SmallBorder)
-                    .background(Color.Black)
-                    .padding(horizontal = 5.dp)
-            },
+        modifier = liveStreamTag,
     )
 }
 

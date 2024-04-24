@@ -31,7 +31,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -47,7 +47,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
@@ -185,8 +184,9 @@ private fun RenderTopRouteBar(
         Route.Video.base -> StoriesTopBar(followLists, drawerState, accountViewModel, nav)
         Route.Discover.base -> DiscoveryTopBar(followLists, drawerState, accountViewModel, nav)
         Route.Notification.base -> NotificationTopBar(followLists, drawerState, accountViewModel, nav)
-        Route.Settings.base ->
-            TopBarWithBackButton(stringResource(id = R.string.application_preferences), navPopBack)
+        Route.Settings.base -> TopBarWithBackButton(stringResource(id = R.string.application_preferences), navPopBack)
+        Route.Bookmarks.base -> TopBarWithBackButton(stringResource(id = R.string.bookmarks), navPopBack)
+        Route.Drafts.base -> TopBarWithBackButton(stringResource(id = R.string.drafts), navPopBack)
         else -> {
             if (id != null) {
                 when (currentRoute) {
@@ -356,7 +356,9 @@ private fun RenderRoomTopBar(
 
                 RoomNameOnlyDisplay(
                     room,
-                    Modifier.padding(start = 10.dp).weight(1f),
+                    Modifier
+                        .padding(start = 10.dp)
+                        .weight(1f),
                     fontWeight = FontWeight.Normal,
                     accountViewModel.userProfile(),
                 )
@@ -493,24 +495,13 @@ fun GenericMainTopBar(
 ) {
     Column(modifier = BottomTopHeight) {
         TopAppBar(
-            colors =
-                TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
             title = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize(),
                     horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
                 ) {
-                    Box(Modifier) {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            content()
-                        }
-                    }
+                    content()
                 }
             },
             navigationIcon = {
@@ -540,9 +531,7 @@ private fun LoggedInUserPictureDrawer(
     val profilePicture by
         accountViewModel.account.userProfile().live().profilePictureChanges.observeAsState()
 
-    IconButton(
-        onClick = onClick,
-    ) {
+    IconButton(onClick = onClick) {
         RobohashFallbackAsyncImage(
             robot = accountViewModel.userProfile().pubkeyHex,
             model = profilePicture,
@@ -650,15 +639,15 @@ class FollowListViewModel(val account: Account) : ViewModel() {
 
         val newFollowLists =
             LocalCache.addressables
-                .mapNotNull {
-                    val event = (it.value.event as? PeopleListEvent)
+                .mapNotNull { _, addressableNote ->
+                    val event = (addressableNote.event as? PeopleListEvent)
                     // Has to have an list
                     if (
                         event != null &&
                         event.pubKey == account.userProfile().pubkeyHex &&
                         (event.tags.size > 1 || event.content.length > 50)
                     ) {
-                        CodeName(event.address().toTag(), PeopleListName(it.value), CodeNameType.PEOPLE_LIST)
+                        CodeName(event.address().toTag(), PeopleListName(addressableNote), CodeNameType.PEOPLE_LIST)
                     } else {
                         null
                     }
@@ -784,12 +773,14 @@ fun SimpleTextSpinner(
         }
         Box(
             modifier =
-                Modifier.matchParentSize().clickable(
-                    interactionSource = interactionSource,
-                    indication = null,
-                ) {
-                    optionsShowing = true
-                },
+                Modifier
+                    .matchParentSize()
+                    .clickable(
+                        interactionSource = interactionSource,
+                        indication = null,
+                    ) {
+                        optionsShowing = true
+                    },
         )
     }
 
@@ -922,13 +913,7 @@ fun AmethystClickableIcon() {
 
 fun debugState(context: Context) {
     Client.allSubscriptions()
-        .map {
-            "$it ${
-                Client.getSubscriptionFilters(it)
-                    .joinToString { it.filter.toJson() }
-            }"
-        }
-        .forEach { Log.d("STATE DUMP", it) }
+        .forEach { Log.d("STATE DUMP", "${it.key} ${it.value.joinToString { it.filter.toJson() }}") }
 
     NostrAccountDataSource.printCounter()
     NostrChannelDataSource.printCounter()
@@ -973,44 +958,44 @@ fun debugState(context: Context) {
     Log.d(
         "STATE DUMP",
         "Notes: " +
-            LocalCache.noteListCache.filter { it.liveSet != null }.size +
+            LocalCache.notes.filter { _, it -> it.liveSet != null }.size +
             " / " +
-            LocalCache.noteListCache.filter { it.event != null }.size +
+            LocalCache.notes.filter { _, it -> it.event != null }.size +
             " / " +
-            LocalCache.noteListCache.size,
+            LocalCache.notes.size(),
     )
     Log.d(
         "STATE DUMP",
         "Addressables: " +
-            LocalCache.addressables.filter { it.value.liveSet != null }.size +
+            LocalCache.addressables.filter { _, it -> it.liveSet != null }.size +
             " / " +
-            LocalCache.addressables.filter { it.value.event != null }.size +
+            LocalCache.addressables.filter { _, it -> it.event != null }.size +
             " / " +
-            LocalCache.addressables.size,
+            LocalCache.addressables.size(),
     )
     Log.d(
         "STATE DUMP",
         "Users: " +
-            LocalCache.userListCache.filter { it.liveSet != null }.size +
+            LocalCache.users.filter { _, it -> it.liveSet != null }.size +
             " / " +
-            LocalCache.userListCache.filter { it.info?.latestMetadata != null }.size +
+            LocalCache.users.filter { _, it -> it.latestMetadata != null }.size +
             " / " +
-            LocalCache.userListCache.size,
+            LocalCache.users.size(),
     )
 
     Log.d(
         "STATE DUMP",
         "Memory used by Events: " +
-            LocalCache.noteListCache.sumOf { it.event?.countMemory() ?: 0 } / (1024 * 1024) +
+            LocalCache.notes.sumOfLong { _, note -> note.event?.countMemory() ?: 0L } / (1024 * 1024) +
             " MB",
     )
 
-    LocalCache.noteListCache
-        .groupBy { it.event?.kind() }
-        .forEach { Log.d("STATE DUMP", "Kind ${it.key}: \t${it.value.size} elements ") }
-    LocalCache.addressables.values
-        .groupBy { it.event?.kind() }
-        .forEach { Log.d("STATE DUMP", "Kind ${it.key}: \t${it.value.size} elements ") }
+    LocalCache.notes
+        .countByGroup { _, it -> it.event?.kind() }
+        .forEach { Log.d("STATE DUMP", "Kind ${it.key}: \t${it.value} elements ") }
+    LocalCache.addressables
+        .countByGroup { _, it -> it.event?.kind() }
+        .forEach { Log.d("STATE DUMP", "Kind ${it.key}: \t${it.value} elements ") }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

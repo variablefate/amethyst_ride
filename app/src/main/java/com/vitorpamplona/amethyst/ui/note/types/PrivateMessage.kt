@@ -20,25 +20,35 @@
  */
 package com.vitorpamplona.amethyst.ui.note.types
 
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
 import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.ui.components.SensitivityWarning
 import com.vitorpamplona.amethyst.ui.components.TranslatableRichTextViewer
+import com.vitorpamplona.amethyst.ui.navigation.routeFor
 import com.vitorpamplona.amethyst.ui.note.LoadDecryptedContent
 import com.vitorpamplona.amethyst.ui.note.elements.DisplayUncitedHashtags
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.ChatroomHeader
+import com.vitorpamplona.amethyst.ui.theme.StdVertSpacer
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
+import com.vitorpamplona.amethyst.ui.theme.replyModifier
 import com.vitorpamplona.quartz.encoders.toNpub
+import com.vitorpamplona.quartz.events.ChatroomKeyable
 import com.vitorpamplona.quartz.events.EmptyTagList
 import com.vitorpamplona.quartz.events.PrivateDmEvent
 import com.vitorpamplona.quartz.events.toImmutableListOfLists
@@ -50,11 +60,30 @@ fun RenderPrivateMessage(
     note: Note,
     makeItShort: Boolean,
     canPreview: Boolean,
+    quotesLeft: Int,
     backgroundColor: MutableState<Color>,
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
     val noteEvent = note.event as? PrivateDmEvent ?: return
+
+    val userRoom by
+        remember(note) {
+            derivedStateOf {
+                (note.event as? ChatroomKeyable)?.chatroomKey(accountViewModel.userProfile().pubkeyHex)
+            }
+        }
+
+    userRoom?.let {
+        if (it.users.size > 1 || (it.users.size == 1 && note.author == accountViewModel.account.userProfile())) {
+            ChatroomHeader(it, MaterialTheme.colorScheme.replyModifier.padding(10.dp), accountViewModel) {
+                routeFor(note, accountViewModel.userProfile())?.let {
+                    nav(it)
+                }
+            }
+            Spacer(modifier = StdVertSpacer)
+        }
+    }
 
     val withMe = remember { noteEvent.with(accountViewModel.userProfile().pubkeyHex) }
     if (withMe) {
@@ -81,6 +110,7 @@ fun RenderPrivateMessage(
                     TranslatableRichTextViewer(
                         content = eventContent,
                         canPreview = canPreview && !makeItShort,
+                        quotesLeft = quotesLeft,
                         modifier = modifier,
                         tags = tags,
                         backgroundColor = backgroundColor,
@@ -109,12 +139,13 @@ fun RenderPrivateMessage(
                 "@$recipient",
             ),
             canPreview = !makeItShort,
-            Modifier.fillMaxWidth(),
-            EmptyTagList,
-            backgroundColor,
+            quotesLeft = 0,
+            modifier = Modifier.fillMaxWidth(),
+            tags = EmptyTagList,
+            backgroundColor = backgroundColor,
             id = note.idHex,
-            accountViewModel,
-            nav,
+            accountViewModel = accountViewModel,
+            nav = nav,
         )
     }
 }

@@ -27,7 +27,6 @@ import com.vitorpamplona.quartz.events.EventInterface
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.UUID
 
@@ -98,7 +97,7 @@ object Client : RelayPool.Listener {
         checkNotInMainThread()
 
         subscriptions = subscriptions + Pair(subscriptionId, filters)
-        RelayPool.sendFilter(subscriptionId)
+        RelayPool.sendFilter(subscriptionId, filters)
     }
 
     fun sendFilterOnlyIfDisconnected(
@@ -125,45 +124,8 @@ object Client : RelayPool.Listener {
         } else if (relay == null) {
             RelayPool.send(signedEvent)
         } else {
-            val useConnectedRelayIfPresent = RelayPool.getRelays(relay)
-
-            if (useConnectedRelayIfPresent.isNotEmpty()) {
-                useConnectedRelayIfPresent.forEach { it.send(signedEvent) }
-            } else {
-                /** temporary connection */
-                newSporadicRelay(
-                    relay,
-                    feedTypes,
-                    onConnected = { relay -> relay.send(signedEvent) },
-                    onDone = onDone,
-                )
-            }
-        }
-    }
-
-    @OptIn(DelicateCoroutinesApi::class)
-    private fun newSporadicRelay(
-        url: String,
-        feedTypes: Set<FeedType>?,
-        onConnected: (Relay) -> Unit,
-        onDone: (() -> Unit)?,
-    ) {
-        val relay = Relay(url, true, true, feedTypes ?: emptySet())
-        RelayPool.addRelay(relay)
-
-        relay.connectAndRun {
-            allSubscriptions().forEach { relay.sendFilter(requestId = it) }
-
-            onConnected(relay)
-
-            GlobalScope.launch(Dispatchers.IO) {
-                delay(60000) // waits for a reply
-                relay.disconnect()
-                RelayPool.removeRelay(relay)
-
-                if (onDone != null) {
-                    onDone()
-                }
+            RelayPool.getOrCreateRelay(relay, feedTypes, onDone) {
+                it.send(signedEvent)
             }
         }
     }
@@ -264,8 +226,8 @@ object Client : RelayPool.Listener {
         listeners = listeners.minus(listener)
     }
 
-    fun allSubscriptions(): Set<String> {
-        return subscriptions.keys
+    fun allSubscriptions(): Map<String, List<TypedFilter>> {
+        return subscriptions
     }
 
     fun getSubscriptionFilters(subId: String): List<TypedFilter> {

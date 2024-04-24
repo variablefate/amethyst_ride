@@ -112,7 +112,7 @@ import androidx.lifecycle.map
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.RichTextParser
+import com.vitorpamplona.amethyst.commons.richtext.RichTextParser
 import com.vitorpamplona.amethyst.model.Account
 import com.vitorpamplona.amethyst.model.AddressableNote
 import com.vitorpamplona.amethyst.model.LocalCache
@@ -131,6 +131,7 @@ import com.vitorpamplona.amethyst.ui.components.ZoomableImageDialog
 import com.vitorpamplona.amethyst.ui.dal.UserProfileReportsFeedFilter
 import com.vitorpamplona.amethyst.ui.navigation.routeToMessage
 import com.vitorpamplona.amethyst.ui.note.ClickableUserPicture
+import com.vitorpamplona.amethyst.ui.note.DrawPlayName
 import com.vitorpamplona.amethyst.ui.note.ErrorMessageDialog
 import com.vitorpamplona.amethyst.ui.note.LightningAddressIcon
 import com.vitorpamplona.amethyst.ui.note.LoadAddressableNote
@@ -159,6 +160,7 @@ import com.vitorpamplona.amethyst.ui.theme.Size15Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size16Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size25Modifier
 import com.vitorpamplona.amethyst.ui.theme.Size35dp
+import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.ZeroPadding
 import com.vitorpamplona.amethyst.ui.theme.placeholderText
 import com.vitorpamplona.quartz.encoders.ATag
@@ -174,11 +176,11 @@ import com.vitorpamplona.quartz.events.PayInvoiceSuccessResponse
 import com.vitorpamplona.quartz.events.ReportEvent
 import com.vitorpamplona.quartz.events.TelegramIdentity
 import com.vitorpamplona.quartz.events.TwitterIdentity
-import com.vitorpamplona.quartz.events.toImmutableListOfLists
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.math.BigDecimal
 
 @Composable
@@ -959,8 +961,7 @@ private fun DrawAdditionalInfo(
 ) {
     val userState by baseUser.live().metadata.observeAsState()
     val user = remember(userState) { userState?.user } ?: return
-    val tags =
-        remember(userState) { userState?.user?.info?.latestMetadata?.tags?.toImmutableListOfLists() }
+    val tags = userState?.user?.info?.tags
 
     val uri = LocalUriHandler.current
     val clipboardManager = LocalClipboardManager.current
@@ -971,13 +972,15 @@ private fun DrawAdditionalInfo(
         }
 
     user.toBestDisplayName().let {
-        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 7.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 7.dp)) {
             CreateTextWithEmoji(
                 text = it,
                 tags = tags,
                 fontWeight = FontWeight.Bold,
                 fontSize = 25.sp,
             )
+            Spacer(StdHorzSpacer)
+            DrawPlayName(it)
         }
     }
 
@@ -1067,7 +1070,7 @@ private fun DrawAdditionalInfo(
     val pubkeyHex = remember { baseUser.pubkeyHex }
     DisplayLNAddress(lud16, pubkeyHex, accountViewModel, nav)
 
-    val identities = user.info?.latestMetadata?.identityClaims()
+    val identities = user.latestMetadata?.identityClaims()
     if (!identities.isNullOrEmpty()) {
         identities.forEach { identity: IdentityClaim ->
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1101,6 +1104,7 @@ private fun DrawAdditionalInfo(
             TranslatableRichTextViewer(
                 content = it,
                 canPreview = false,
+                quotesLeft = 1,
                 tags = EmptyTagList,
                 backgroundColor = background,
                 id = it,
@@ -1178,7 +1182,7 @@ fun DisplayLNAddress(
                         zapExpanded = false
                         // pay directly
                         if (accountViewModel.account.hasWalletConnectSetup()) {
-                            accountViewModel.account.sendZapPaymentRequestFor(it, null) { response ->
+                            accountViewModel.account.sendZapPaymentRequestFor(it, null, onSent = {}) { response ->
                                 if (response is PayInvoiceSuccessResponse) {
                                     showInfoMessageDialog = context.getString(R.string.payment_successful)
                                 } else if (response is PayInvoiceErrorResponse) {
@@ -1242,7 +1246,7 @@ private fun WatchApp(
     var appLogo by remember(baseApp) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(key1 = appState) {
-        launch(Dispatchers.Default) {
+        withContext(Dispatchers.Default) {
             val newAppLogo =
                 (appState?.note?.event as? AppDefinitionEvent)?.appMetaData()?.picture?.ifBlank { null }
             if (newAppLogo != appLogo) {
@@ -1544,18 +1548,17 @@ fun TabFollowedTags(
     account: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxHeight()) {
-        Column(
-            modifier = Modifier.padding(vertical = 0.dp),
-        ) {
-            baseUser.latestContactList?.let {
-                it.unverifiedFollowTagSet().forEach { hashtag ->
-                    HashtagHeader(
-                        tag = hashtag,
-                        account = account,
-                        onClick = { nav("Hashtag/$hashtag") },
-                    )
-                }
+    Column(Modifier.fillMaxHeight().padding(vertical = 0.dp)) {
+        baseUser.latestContactList?.let {
+            it.unverifiedFollowTagSet().forEach { hashtag ->
+                HashtagHeader(
+                    tag = hashtag,
+                    account = account,
+                    onClick = { nav("Hashtag/$hashtag") },
+                )
+                HorizontalDivider(
+                    thickness = DividerThickness,
+                )
             }
         }
     }

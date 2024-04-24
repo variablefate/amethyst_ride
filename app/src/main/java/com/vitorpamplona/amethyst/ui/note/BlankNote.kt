@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,7 +44,6 @@ import com.vitorpamplona.amethyst.ui.components.mockAccountViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.theme.ButtonBorder
 import com.vitorpamplona.amethyst.ui.theme.ButtonPadding
-import com.vitorpamplona.amethyst.ui.theme.DividerThickness
 import com.vitorpamplona.amethyst.ui.theme.Size35dp
 import com.vitorpamplona.amethyst.ui.theme.ThemeComparisonColumn
 import kotlinx.collections.immutable.ImmutableSet
@@ -60,7 +58,6 @@ fun BlankNotePreview() {
 @Composable
 fun BlankNote(
     modifier: Modifier = Modifier,
-    showDivider: Boolean = true,
     idHex: String? = null,
 ) {
     Column(modifier = modifier) {
@@ -82,13 +79,6 @@ fun BlankNote(
                         modifier = Modifier.padding(30.dp),
                         color = Color.Gray,
                         textAlign = TextAlign.Center,
-                    )
-                }
-
-                if (showDivider) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 10.dp),
-                        thickness = DividerThickness,
                     )
                 }
             }
@@ -121,13 +111,12 @@ fun HiddenNote(
     isHiddenAuthor: Boolean,
     accountViewModel: AccountViewModel,
     modifier: Modifier = Modifier,
-    isQuote: Boolean = false,
     nav: (String) -> Unit,
     onClick: () -> Unit,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Row(
-            modifier = Modifier.padding(start = if (!isQuote) 30.dp else 25.dp, end = 20.dp),
+            modifier = Modifier.padding(horizontal = 20.dp),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -172,10 +161,6 @@ fun HiddenNote(
                 }
             }
         }
-
-        HorizontalDivider(
-            thickness = DividerThickness,
-        )
     }
 }
 
@@ -190,7 +175,6 @@ fun HiddenNoteByMePreview() {
 @Composable
 fun HiddenNoteByMe(
     modifier: Modifier = Modifier,
-    isQuote: Boolean = false,
     onClick: () -> Unit,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
@@ -222,12 +206,6 @@ fun HiddenNoteByMe(
                     Text(text = stringResource(R.string.show_anyway), color = Color.White)
                 }
             }
-        }
-
-        if (!isQuote) {
-            HorizontalDivider(
-                thickness = DividerThickness,
-            )
         }
     }
 }

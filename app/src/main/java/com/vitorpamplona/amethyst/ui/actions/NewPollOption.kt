@@ -45,7 +45,9 @@ fun NewPollOption(
     Row {
         val deleteIcon: @Composable (() -> Unit) = {
             IconButton(
-                onClick = { pollViewModel.pollOptions.remove(optionIndex) },
+                onClick = {
+                    pollViewModel.removePollOption(optionIndex)
+                },
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
@@ -57,7 +59,9 @@ fun NewPollOption(
         OutlinedTextField(
             modifier = Modifier.weight(1F),
             value = pollViewModel.pollOptions[optionIndex] ?: "",
-            onValueChange = { pollViewModel.pollOptions[optionIndex] = it },
+            onValueChange = {
+                pollViewModel.updatePollOption(optionIndex, it)
+            },
             label = {
                 Text(
                     text = stringResource(R.string.poll_option_index).format(optionIndex + 1),

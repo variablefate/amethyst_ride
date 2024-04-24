@@ -44,7 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.ExpandableTextCutOffCalculator
+import com.vitorpamplona.amethyst.commons.richtext.ExpandableTextCutOffCalculator
 import com.vitorpamplona.amethyst.ui.note.getGradient
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.theme.ButtonBorder
@@ -53,13 +53,14 @@ import com.vitorpamplona.amethyst.ui.theme.secondaryButtonBackground
 import com.vitorpamplona.quartz.events.ImmutableListOfLists
 
 object ShowFullTextCache {
-    val cache = LruCache<String, Boolean>(20)
+    val cache = LruCache<String, Boolean>(10)
 }
 
 @Composable
 fun ExpandableRichTextViewer(
     content: String,
     canPreview: Boolean,
+    quotesLeft: Int,
     modifier: Modifier,
     tags: ImmutableListOfLists<String>,
     backgroundColor: MutableState<Color>,
@@ -67,15 +68,16 @@ fun ExpandableRichTextViewer(
     accountViewModel: AccountViewModel,
     nav: (String) -> Unit,
 ) {
-    var showFullText by remember {
-        val cached = ShowFullTextCache.cache[id]
-        if (cached == null) {
-            ShowFullTextCache.cache.put(id, false)
-            mutableStateOf(false)
-        } else {
-            mutableStateOf(cached)
+    var showFullText by
+        remember {
+            val cached = ShowFullTextCache.cache[id]
+            if (cached == null) {
+                ShowFullTextCache.cache.put(id, false)
+                mutableStateOf(false)
+            } else {
+                mutableStateOf(cached)
+            }
         }
-    }
 
     val whereToCut = remember(content) { ExpandableTextCutOffCalculator.indexToCutOff(content) }
 
@@ -94,6 +96,7 @@ fun ExpandableRichTextViewer(
         RichTextViewer(
             text,
             canPreview,
+            quotesLeft,
             modifier.align(Alignment.TopStart),
             tags,
             backgroundColor,

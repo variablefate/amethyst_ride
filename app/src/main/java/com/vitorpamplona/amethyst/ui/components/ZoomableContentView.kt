@@ -106,13 +106,13 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import com.vitorpamplona.amethyst.Amethyst
 import com.vitorpamplona.amethyst.R
-import com.vitorpamplona.amethyst.commons.BaseMediaContent
-import com.vitorpamplona.amethyst.commons.MediaLocalImage
-import com.vitorpamplona.amethyst.commons.MediaLocalVideo
-import com.vitorpamplona.amethyst.commons.MediaPreloadedContent
-import com.vitorpamplona.amethyst.commons.MediaUrlContent
-import com.vitorpamplona.amethyst.commons.MediaUrlImage
-import com.vitorpamplona.amethyst.commons.MediaUrlVideo
+import com.vitorpamplona.amethyst.commons.richtext.BaseMediaContent
+import com.vitorpamplona.amethyst.commons.richtext.MediaLocalImage
+import com.vitorpamplona.amethyst.commons.richtext.MediaLocalVideo
+import com.vitorpamplona.amethyst.commons.richtext.MediaPreloadedContent
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlContent
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlImage
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlVideo
 import com.vitorpamplona.amethyst.service.BlurHashRequester
 import com.vitorpamplona.amethyst.ui.actions.CloseButton
 import com.vitorpamplona.amethyst.ui.actions.InformationDialog
@@ -141,6 +141,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.engawapg.lib.zoomable.rememberZoomState
 import net.engawapg.lib.zoomable.zoomable
 
@@ -501,8 +502,6 @@ private fun AddedImageFeatures(
             ImageUrlWithDownloadButton(content.url, showImage)
         }
     } else {
-        var verifiedHash by remember(content.url) { mutableStateOf<Boolean?>(null) }
-
         when (painter.value) {
             null,
             is AsyncImagePainter.State.Loading,
@@ -528,22 +527,33 @@ private fun AddedImageFeatures(
                 }
             }
             is AsyncImagePainter.State.Success -> {
-                if (content.hash != null) {
-                    LaunchedEffect(key1 = content.url) {
-                        launch(Dispatchers.IO) {
-                            val newVerifiedHash = verifyHash(content)
-                            if (newVerifiedHash != verifiedHash) {
-                                verifiedHash = newVerifiedHash
-                            }
-                        }
-                    }
-                }
-
-                verifiedHash?.let { HashVerificationSymbol(it, verifiedModifier) }
+                ShowHash(content, verifiedModifier)
             }
             else -> {}
         }
     }
+}
+
+@Composable
+fun ShowHash(
+    content: MediaUrlContent,
+    verifiedModifier: Modifier,
+) {
+    var verifiedHash by remember(content.url) { mutableStateOf<Boolean?>(null) }
+
+    if (content.hash != null) {
+        LaunchedEffect(key1 = content.url) {
+            val newVerifiedHash =
+                withContext(Dispatchers.IO) {
+                    verifyHash(content)
+                }
+            if (newVerifiedHash != verifiedHash) {
+                verifiedHash = newVerifiedHash
+            }
+        }
+    }
+
+    verifiedHash?.let { HashVerificationSymbol(it, verifiedModifier) }
 }
 
 fun aspectRatio(dim: String?): Float? {

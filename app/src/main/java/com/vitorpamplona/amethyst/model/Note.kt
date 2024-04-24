@@ -47,6 +47,7 @@ import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.ChannelMessageEvent
 import com.vitorpamplona.quartz.events.ChannelMetadataEvent
 import com.vitorpamplona.quartz.events.CommunityPostApprovalEvent
+import com.vitorpamplona.quartz.events.DraftEvent
 import com.vitorpamplona.quartz.events.Event
 import com.vitorpamplona.quartz.events.EventInterface
 import com.vitorpamplona.quartz.events.GenericRepostEvent
@@ -96,6 +97,14 @@ class AddressableNote(val address: ATag) : Note(address.toTag()) {
 
     fun dTag(): String? {
         return (event as? AddressableEvent)?.dTag()
+    }
+
+    override fun wasOrShouldBeDeletedBy(
+        deletionEvents: Set<HexKey>,
+        deletionAddressables: Set<ATag>,
+    ): Boolean {
+        val thisEvent = event
+        return deletionAddressables.contains(address) || (thisEvent != null && deletionEvents.contains(thisEvent.id()))
     }
 }
 
@@ -171,7 +180,8 @@ open class Note(val idHex: String) {
             event is LiveActivitiesEvent
         ) {
             (event as? ChannelMessageEvent)?.channel()
-                ?: (event as? ChannelMetadataEvent)?.channel() ?: (event as? ChannelCreateEvent)?.id
+                ?: (event as? ChannelMetadataEvent)?.channel()
+                ?: (event as? ChannelCreateEvent)?.id
                 ?: (event as? LiveActivitiesChatMessageEvent)?.activity()?.toTag()
                 ?: (event as? LiveActivitiesEvent)?.address()?.toTag()
         } else {
@@ -182,6 +192,8 @@ open class Note(val idHex: String) {
     open fun address(): ATag? = null
 
     open fun createdAt() = event?.createdAt()
+
+    fun isDraft() = event is DraftEvent
 
     fun loadEvent(
         event: Event,
@@ -310,6 +322,12 @@ open class Note(val idHex: String) {
     }
 
     fun removeAllChildNotes(): List<Note> {
+        val repliesChanged = replies.isNotEmpty()
+        val reactionsChanged = reactions.isNotEmpty()
+        val zapsChanged = zaps.isNotEmpty() || zapPayments.isNotEmpty()
+        val boostsChanged = boosts.isNotEmpty()
+        val reportsChanged = reports.isNotEmpty()
+
         val toBeRemoved =
             replies +
                 reactions.values.flatten() +
@@ -330,11 +348,11 @@ open class Note(val idHex: String) {
         relays = listOf<RelayBriefInfoCache.RelayBriefInfo>()
         lastReactionsDownloadTime = emptyMap()
 
-        liveSet?.innerReplies?.invalidateData()
-        liveSet?.innerReactions?.invalidateData()
-        liveSet?.innerBoosts?.invalidateData()
-        liveSet?.innerReports?.invalidateData()
-        liveSet?.innerZaps?.invalidateData()
+        if (repliesChanged) liveSet?.innerReplies?.invalidateData()
+        if (reactionsChanged) liveSet?.innerReactions?.invalidateData()
+        if (boostsChanged) liveSet?.innerBoosts?.invalidateData()
+        if (reportsChanged) liveSet?.innerReports?.invalidateData()
+        if (zapsChanged) liveSet?.innerZaps?.invalidateData()
 
         return toBeRemoved
     }
@@ -529,7 +547,7 @@ open class Note(val idHex: String) {
         option: Int?,
         user: User,
         account: Account,
-        remainingZapEvents: List<Pair<Note, Note?>>,
+        remainingZapEvents: Map<Note, Note?>,
         onWasZappedByAuthor: () -> Unit,
     ) {
         if (remainingZapEvents.isEmpty()) {
@@ -537,8 +555,8 @@ open class Note(val idHex: String) {
         }
 
         remainingZapEvents.forEach { next ->
-            val zapRequest = next.first.event as LnZapRequestEvent
-            val zapEvent = next.second?.event as? LnZapEvent
+            val zapRequest = next.key.event as LnZapRequestEvent
+            val zapEvent = next.value?.event as? LnZapEvent
 
             if (!zapRequest.isPrivateZap()) {
                 // public events
@@ -582,7 +600,7 @@ open class Note(val idHex: String) {
         account: Account,
         onWasZappedByAuthor: () -> Unit,
     ) {
-        isZappedByCalculation(null, user, account, zaps.toList(), onWasZappedByAuthor)
+        isZappedByCalculation(null, user, account, zaps, onWasZappedByAuthor)
         if (account.userProfile() == user) {
             recursiveIsPaidByCalculation(account, zapPayments.toList(), onWasZappedByAuthor)
         }
@@ -594,7 +612,7 @@ open class Note(val idHex: String) {
         account: Account,
         onWasZappedByAuthor: () -> Unit,
     ) {
-        isZappedByCalculation(option, user, account, zaps.toList(), onWasZappedByAuthor)
+        isZappedByCalculation(option, user, account, zaps, onWasZappedByAuthor)
     }
 
     fun getReactionBy(user: User): String? {
@@ -921,6 +939,14 @@ open class Note(val idHex: String) {
             createOrDestroyFlowSync(false)
         }
     }
+
+    open fun wasOrShouldBeDeletedBy(
+        deletionEvents: Set<HexKey>,
+        deletionAddressables: Set<ATag>,
+    ): Boolean {
+        val thisEvent = event
+        return deletionEvents.contains(idHex) || (thisEvent is AddressableEvent && deletionAddressables.contains(thisEvent.address()))
+    }
 }
 
 @Stable
@@ -957,8 +983,6 @@ class NoteLiveSet(u: Note) {
     val reports = innerReports.map { it }
     val relays = innerRelays.map { it }
     val zaps = innerZaps.map { it }
-
-    val authorChanges = innerMetadata.map { it.note.author }.distinctUntilChanged()
 
     val hasEvent = innerMetadata.map { it.note.event != null }.distinctUntilChanged()
 
@@ -997,7 +1021,6 @@ class NoteLiveSet(u: Note) {
             reports.hasObservers() ||
             relays.hasObservers() ||
             zaps.hasObservers() ||
-            authorChanges.hasObservers() ||
             hasEvent.hasObservers() ||
             hasReactions.hasObservers() ||
             replyCount.hasObservers() ||

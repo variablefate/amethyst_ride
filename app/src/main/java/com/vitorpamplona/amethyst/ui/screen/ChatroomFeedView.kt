@@ -43,6 +43,7 @@ import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.theme.FeedPadding
 import com.vitorpamplona.amethyst.ui.theme.Font14SP
 import com.vitorpamplona.amethyst.ui.theme.HalfPadding
+import com.vitorpamplona.quartz.events.DraftEvent
 
 @Composable
 fun RefreshingChatroomFeedView(
@@ -51,6 +52,8 @@ fun RefreshingChatroomFeedView(
     nav: (String) -> Unit,
     routeForLastRead: String,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
+    avoidDraft: String? = null,
     scrollStateKey: String? = null,
     enablePullRefresh: Boolean = true,
 ) {
@@ -63,6 +66,8 @@ fun RefreshingChatroomFeedView(
                 nav,
                 routeForLastRead,
                 onWantsToReply,
+                onWantsToEditDraft,
+                avoidDraft,
             )
         }
     }
@@ -76,6 +81,8 @@ fun RenderChatroomFeedView(
     nav: (String) -> Unit,
     routeForLastRead: String,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
+    avoidDraft: String? = null,
 ) {
     val feedState by viewModel.feedContent.collectAsStateWithLifecycle()
 
@@ -95,6 +102,8 @@ fun RenderChatroomFeedView(
                     nav,
                     routeForLastRead,
                     onWantsToReply,
+                    onWantsToEditDraft,
+                    avoidDraft,
                 )
             }
             is FeedState.Loading -> {
@@ -112,6 +121,8 @@ fun ChatroomFeedLoaded(
     nav: (String) -> Unit,
     routeForLastRead: String,
     onWantsToReply: (Note) -> Unit,
+    onWantsToEditDraft: (Note) -> Unit,
+    avoidDraft: String? = null,
 ) {
     LaunchedEffect(state.feed.value.firstOrNull()) {
         if (listState.firstVisibleItemIndex <= 1) {
@@ -126,13 +137,17 @@ fun ChatroomFeedLoaded(
         state = listState,
     ) {
         itemsIndexed(state.feed.value, key = { _, item -> item.idHex }) { _, item ->
-            ChatroomMessageCompose(
-                baseNote = item,
-                routeForLastRead = routeForLastRead,
-                accountViewModel = accountViewModel,
-                nav = nav,
-                onWantsToReply = onWantsToReply,
-            )
+            val noteEvent = item.event
+            if (avoidDraft == null || noteEvent !is DraftEvent || noteEvent.dTag() != avoidDraft) {
+                ChatroomMessageCompose(
+                    baseNote = item,
+                    routeForLastRead = routeForLastRead,
+                    accountViewModel = accountViewModel,
+                    nav = nav,
+                    onWantsToReply = onWantsToReply,
+                    onWantsToEditDraft = onWantsToEditDraft,
+                )
+            }
             NewSubject(item)
         }
     }

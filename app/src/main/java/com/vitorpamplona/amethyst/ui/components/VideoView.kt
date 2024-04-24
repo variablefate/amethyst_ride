@@ -57,7 +57,6 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -91,6 +90,8 @@ import androidx.media3.session.MediaController
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.linc.audiowaveform.infiniteLinearGradient
+import com.vitorpamplona.amethyst.commons.compose.GenericBaseCache
+import com.vitorpamplona.amethyst.commons.compose.produceCachedState
 import com.vitorpamplona.amethyst.service.playback.PlaybackClientController
 import com.vitorpamplona.amethyst.ui.note.DownloadForOfflineIcon
 import com.vitorpamplona.amethyst.ui.note.LyricsIcon
@@ -114,6 +115,7 @@ import kotlinx.coroutines.flow.conflate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.abs
 
 public val DEFAULT_MUTED_SETTING = mutableStateOf(true)
@@ -328,6 +330,43 @@ fun VideoViewInner(
     }
 }
 
+val mediaItemCache = MediaItemCache()
+
+@Immutable
+data class MediaItemData(
+    val videoUri: String,
+    val authorName: String? = null,
+    val title: String? = null,
+    val artworkUri: String? = null,
+)
+
+class MediaItemCache() : GenericBaseCache<MediaItemData, MediaItem>(20) {
+    override suspend fun compute(data: MediaItemData): MediaItem? {
+        return MediaItem.Builder()
+            .setMediaId(data.videoUri)
+            .setUri(data.videoUri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setArtist(data.authorName?.ifBlank { null })
+                    .setTitle(data.title?.ifBlank { null } ?: data.videoUri)
+                    .setArtworkUri(
+                        try {
+                            if (data.artworkUri != null) {
+                                Uri.parse(data.artworkUri)
+                            } else {
+                                null
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            null
+                        },
+                    )
+                    .build(),
+            )
+            .build()
+    }
+}
+
 @Composable
 fun GetMediaItem(
     videoUri: String,
@@ -336,49 +375,13 @@ fun GetMediaItem(
     authorName: String?,
     inner: @Composable (State<MediaItem>) -> Unit,
 ) {
-    val mediaItem =
-        produceState<MediaItem?>(
-            initialValue = null,
-            key1 = videoUri,
-        ) {
-            this.value =
-                MediaItem.Builder()
-                    .setMediaId(videoUri)
-                    .setUri(videoUri)
-                    .setMediaMetadata(
-                        MediaMetadata.Builder()
-                            .setArtist(authorName?.ifBlank { null })
-                            .setTitle(title?.ifBlank { null } ?: videoUri)
-                            .setArtworkUri(
-                                try {
-                                    if (artworkUri != null) {
-                                        Uri.parse(artworkUri)
-                                    } else {
-                                        null
-                                    }
-                                } catch (e: Exception) {
-                                    if (e is CancellationException) throw e
-                                    null
-                                },
-                            )
-                            .build(),
-                    )
-                    .build()
-        }
+    val data = remember(videoUri) { MediaItemData(videoUri, title, artworkUri, authorName) }
+    val mediaItem by produceCachedState(cache = mediaItemCache, key = data)
 
-    mediaItem.value?.let {
+    mediaItem?.let {
         val myState = remember(videoUri) { mutableStateOf(it) }
         inner(myState)
     }
-}
-
-@Immutable
-sealed class MediaControllerState {
-    @Immutable object NotStarted : MediaControllerState()
-
-    @Immutable object Loading : MediaControllerState()
-
-    @Stable class Loaded(val instance: MediaController) : MediaControllerState()
 }
 
 @Composable
@@ -392,14 +395,15 @@ fun GetVideoController(
 ) {
     val context = LocalContext.current
 
+    val onlyOnePreparing = AtomicBoolean()
+
     val controller =
         remember(videoUri) {
-            val globalMutex = keepPlayingMutex
-            mutableStateOf<MediaControllerState>(
-                if (videoUri == globalMutex?.currentMediaItem?.mediaId) {
-                    MediaControllerState.Loaded(globalMutex)
+            mutableStateOf(
+                if (videoUri == keepPlayingMutex?.currentMediaItem?.mediaId) {
+                    keepPlayingMutex
                 } else {
-                    MediaControllerState.NotStarted
+                    null
                 },
             )
         }
@@ -419,44 +423,47 @@ fun GetVideoController(
     DisposableEffect(key1 = videoUri) {
         // If it is not null, the user might have come back from a playing video, like clicking on
         // the notification of the video player.
-        if (controller.value == MediaControllerState.NotStarted) {
-            controller.value = MediaControllerState.Loading
-
-            scope.launch(Dispatchers.IO) {
-                Log.d("PlaybackService", "Preparing Video $videoUri ")
-                PlaybackClientController.prepareController(
-                    uid,
-                    videoUri,
-                    nostrUriCallback,
-                    context,
-                ) {
-                    scope.launch(Dispatchers.Main) {
-                        // REQUIRED TO BE RUN IN THE MAIN THREAD
-
-                        val newState = MediaControllerState.Loaded(it)
-
-                        if (!it.isPlaying) {
-                            if (keepPlayingMutex?.isPlaying == true) {
-                                // There is a video playing, start this one on mute.
-                                newState.instance.volume = 0f
-                            } else {
-                                // There is no other video playing. Use the default mute state to
-                                // decide if sound is on or not.
-                                newState.instance.volume = if (defaultToStart) 0f else 1f
+        if (controller.value == null) {
+            // If there is a connection, don't wait.
+            if (!onlyOnePreparing.getAndSet(true)) {
+                scope.launch(Dispatchers.IO) {
+                    Log.d("PlaybackService", "Preparing Video $videoUri ")
+                    PlaybackClientController.prepareController(
+                        uid,
+                        videoUri,
+                        nostrUriCallback,
+                        context,
+                    ) {
+                        scope.launch(Dispatchers.Main) {
+                            // REQUIRED TO BE RUN IN THE MAIN THREAD
+                            if (!it.isPlaying) {
+                                if (keepPlayingMutex?.isPlaying == true) {
+                                    // There is a video playing, start this one on mute.
+                                    it.volume = 0f
+                                } else {
+                                    // There is no other video playing. Use the default mute state to
+                                    // decide if sound is on or not.
+                                    it.volume = if (defaultToStart) 0f else 1f
+                                }
                             }
+
+                            it.setMediaItem(mediaItem.value)
+                            it.prepare()
+
+                            controller.value = it
+
+                            onlyOnePreparing.getAndSet(false)
                         }
-
-                        newState.instance.setMediaItem(mediaItem.value)
-                        newState.instance.prepare()
-
-                        controller.value = newState
                     }
                 }
             }
-        } else if (controller.value is MediaControllerState.Loaded) {
-            (controller.value as? MediaControllerState.Loaded)?.instance?.let {
+        } else {
+            // has been loaded. prepare to play
+            controller.value?.let {
                 scope.launch(Dispatchers.Main) {
                     if (it.playbackState == Player.STATE_IDLE || it.playbackState == Player.STATE_ENDED) {
+                        Log.d("PlaybackService", "Preparing Existing Video $videoUri ")
+
                         if (it.isPlaying) {
                             // There is a video playing, start this one on mute.
                             it.volume = 0f
@@ -466,7 +473,10 @@ fun GetVideoController(
                             it.volume = if (defaultToStart) 0f else 1f
                         }
 
-                        it.setMediaItem(mediaItem.value)
+                        if (mediaItem.value != it.currentMediaItem) {
+                            it.setMediaItem(mediaItem.value)
+                        }
+
                         it.prepare()
                     }
                 }
@@ -477,11 +487,11 @@ fun GetVideoController(
             GlobalScope.launch(Dispatchers.Main) {
                 if (!keepPlaying.value) {
                     // Stops and releases the media.
-                    (controller.value as? MediaControllerState.Loaded)?.instance?.let {
+                    controller.value?.let {
                         it.stop()
                         it.release()
                         Log.d("PlaybackService", "Releasing Video $videoUri ")
-                        controller.value = MediaControllerState.NotStarted
+                        controller.value = null
                     }
                 }
             }
@@ -496,39 +506,36 @@ fun GetVideoController(
                 if (event == Lifecycle.Event.ON_RESUME) {
                     // if the controller is null, restarts the controller with a new one
                     // if the controller is not null, just continue playing what the controller was playing
-                    scope.launch(Dispatchers.IO) {
-                        if (controller.value == MediaControllerState.NotStarted) {
-                            controller.value = MediaControllerState.Loading
-
-                            Log.d("PlaybackService", "Preparing Video from Resume $videoUri ")
-
-                            PlaybackClientController.prepareController(
-                                uid,
-                                videoUri,
-                                nostrUriCallback,
-                                context,
-                            ) {
-                                scope.launch(Dispatchers.Main) {
-                                    // REQUIRED TO BE RUN IN THE MAIN THREAD
-
-                                    val newState = MediaControllerState.Loaded(it)
-
-                                    // checks again to make sure no other thread has created a controller.
-                                    if (!it.isPlaying) {
-                                        if (keepPlayingMutex?.isPlaying == true) {
-                                            // There is a video playing, start this one on mute.
-                                            newState.instance.volume = 0f
-                                        } else {
-                                            // There is no other video playing. Use the default mute state to
-                                            // decide if sound is on or not.
-                                            newState.instance.volume = if (defaultToStart) 0f else 1f
+                    if (controller.value == null) {
+                        if (!onlyOnePreparing.getAndSet(true)) {
+                            scope.launch(Dispatchers.IO) {
+                                Log.d("PlaybackService", "Preparing Video from Resume $videoUri ")
+                                PlaybackClientController.prepareController(
+                                    uid,
+                                    videoUri,
+                                    nostrUriCallback,
+                                    context,
+                                ) {
+                                    scope.launch(Dispatchers.Main) {
+                                        // REQUIRED TO BE RUN IN THE MAIN THREAD
+                                        // checks again to make sure no other thread has created a controller.
+                                        if (!it.isPlaying) {
+                                            if (keepPlayingMutex?.isPlaying == true) {
+                                                // There is a video playing, start this one on mute.
+                                                it.volume = 0f
+                                            } else {
+                                                // There is no other video playing. Use the default mute state to
+                                                // decide if sound is on or not.
+                                                it.volume = if (defaultToStart) 0f else 1f
+                                            }
                                         }
+
+                                        it.setMediaItem(mediaItem.value)
+                                        it.prepare()
+
+                                        controller.value = it
+                                        onlyOnePreparing.getAndSet(false)
                                     }
-
-                                    newState.instance.setMediaItem(mediaItem.value)
-                                    newState.instance.prepare()
-
-                                    controller.value = newState
                                 }
                             }
                         }
@@ -538,11 +545,11 @@ fun GetVideoController(
                     GlobalScope.launch(Dispatchers.Main) {
                         if (!keepPlaying.value) {
                             // Stops and releases the media.
-                            (controller.value as? MediaControllerState.Loaded)?.instance?.let {
+                            controller.value?.let {
                                 Log.d("PlaybackService", "Releasing Video from Pause $videoUri ")
                                 it.stop()
                                 it.release()
-                                controller.value = MediaControllerState.NotStarted
+                                controller.value = null
                             }
                         }
                     }
@@ -553,7 +560,9 @@ fun GetVideoController(
         onDispose { lifeCycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    (controller.value as? MediaControllerState.Loaded)?.let { inner(it.instance, keepPlaying) }
+    controller.value?.let {
+        inner(it, keepPlaying)
+    }
 }
 
 // background playing mutex.
@@ -669,43 +678,6 @@ private fun RenderVideoPlayer(
                 }
             }
 
-        val factory =
-            remember(controller) {
-                { context: Context ->
-                    PlayerView(context).apply {
-                        player = controller
-                        layoutParams =
-                            FrameLayout.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.WRAP_CONTENT,
-                            )
-                        setBackgroundColor(Color.Transparent.toArgb())
-                        setShutterBackgroundColor(Color.Transparent.toArgb())
-                        controllerAutoShow = false
-                        thumbData?.thumb?.let { defaultArtwork = it }
-                        hideController()
-                        resizeMode =
-                            if (maxHeight.isFinite) {
-                                AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            } else {
-                                AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
-                            }
-                        onDialog?.let { innerOnDialog ->
-                            setFullscreenButtonClickListener {
-                                controller.pause()
-                                innerOnDialog(it)
-                            }
-                        }
-                        setControllerVisibilityListener(
-                            PlayerView.ControllerVisibilityListener { visible ->
-                                controllerVisible.value = visible == View.VISIBLE
-                                onControllerVisibilityChanged?.let { callback -> callback(visible == View.VISIBLE) }
-                            },
-                        )
-                    }
-                }
-            }
-
         val ratio = remember { aspectRatio(dimensions) }
 
         if (ratio != null) {
@@ -719,7 +691,39 @@ private fun RenderVideoPlayer(
 
         AndroidView(
             modifier = myModifier,
-            factory = factory,
+            factory = { context: Context ->
+                PlayerView(context).apply {
+                    player = controller
+                    layoutParams =
+                        FrameLayout.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.WRAP_CONTENT,
+                        )
+                    setBackgroundColor(Color.Transparent.toArgb())
+                    setShutterBackgroundColor(Color.Transparent.toArgb())
+                    controllerAutoShow = false
+                    thumbData?.thumb?.let { defaultArtwork = it }
+                    hideController()
+                    resizeMode =
+                        if (maxHeight.isFinite) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIXED_WIDTH
+                        }
+                    onDialog?.let { innerOnDialog ->
+                        setFullscreenButtonClickListener {
+                            controller.pause()
+                            innerOnDialog(it)
+                        }
+                    }
+                    setControllerVisibilityListener(
+                        PlayerView.ControllerVisibilityListener { visible ->
+                            controllerVisible.value = visible == View.VISIBLE
+                            onControllerVisibilityChanged?.let { callback -> callback(visible == View.VISIBLE) }
+                        },
+                    )
+                }
+            },
         )
 
         waveform?.let { Waveform(it, controller, remember { Modifier.align(Alignment.Center) }) }
@@ -892,13 +896,17 @@ fun ControlWhenPlayerIsActive(
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     // doesn't consider the mutex because the screen can turn off if the video
                     // being played in the mutex is not visible.
-                    view.keepScreenOn = isPlaying
+                    if (view.keepScreenOn != isPlaying) {
+                        view.keepScreenOn = isPlaying
+                    }
                 }
             }
 
         controller.addListener(listener)
         onDispose {
-            view.keepScreenOn = false
+            if (view.keepScreenOn) {
+                view.keepScreenOn = false
+            }
             controller.removeListener(listener)
         }
     }

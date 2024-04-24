@@ -24,10 +24,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import com.vitorpamplona.amethyst.commons.BaseMediaContent
-import com.vitorpamplona.amethyst.commons.MediaUrlImage
-import com.vitorpamplona.amethyst.commons.MediaUrlVideo
-import com.vitorpamplona.amethyst.commons.RichTextParser
+import com.vitorpamplona.amethyst.commons.richtext.BaseMediaContent
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlImage
+import com.vitorpamplona.amethyst.commons.richtext.MediaUrlVideo
+import com.vitorpamplona.amethyst.commons.richtext.RichTextParser
 import com.vitorpamplona.amethyst.model.Note
 import com.vitorpamplona.amethyst.ui.components.SensitivityWarning
 import com.vitorpamplona.amethyst.ui.components.ZoomableContentView
@@ -67,6 +67,7 @@ fun FileHeaderDisplay(
                         url = fullUrl,
                         description = description,
                         hash = hash,
+                        blurhash = blurHash,
                         dim = dimensions,
                         uri = uri,
                         authorName = note.author?.toBestDisplayName(),

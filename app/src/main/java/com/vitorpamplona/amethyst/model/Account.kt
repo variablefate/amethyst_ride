@@ -47,6 +47,7 @@ import com.vitorpamplona.quartz.encoders.HexKey
 import com.vitorpamplona.quartz.encoders.Nip47WalletConnect
 import com.vitorpamplona.quartz.encoders.hexToByteArray
 import com.vitorpamplona.quartz.encoders.toHexKey
+import com.vitorpamplona.quartz.events.AdvertisedRelayListEvent
 import com.vitorpamplona.quartz.events.BookmarkListEvent
 import com.vitorpamplona.quartz.events.ChannelCreateEvent
 import com.vitorpamplona.quartz.events.ChannelMessageEvent
@@ -56,6 +57,7 @@ import com.vitorpamplona.quartz.events.ClassifiedsEvent
 import com.vitorpamplona.quartz.events.Contact
 import com.vitorpamplona.quartz.events.ContactListEvent
 import com.vitorpamplona.quartz.events.DeletionEvent
+import com.vitorpamplona.quartz.events.DirectMessageRelayListEvent
 import com.vitorpamplona.quartz.events.DraftEvent
 import com.vitorpamplona.quartz.events.EmojiPackEvent
 import com.vitorpamplona.quartz.events.EmojiPackSelectionEvent
@@ -512,6 +514,30 @@ class Account(
                 // Client.send(it)
                 LocalCache.justConsume(it, null)
             }
+        }
+    }
+
+    fun sendNip65RelayList(relays: List<AdvertisedRelayListEvent.AdvertisedRelayInfo>) {
+        if (!isWriteable()) return
+
+        AdvertisedRelayListEvent.create(
+            relays,
+            signer,
+        ) {
+            Client.send(it)
+            LocalCache.justConsume(it, null)
+        }
+    }
+
+    fun sendNip17RelayList(relays: List<String>) {
+        if (!isWriteable()) return
+
+        DirectMessageRelayListEvent.create(
+            relays,
+            signer,
+        ) {
+            Client.send(it)
+            LocalCache.justConsume(it, null)
         }
     }
 
@@ -2514,11 +2540,33 @@ class Account(
             .toSet()
     }
 
-    fun saveRelayList(value: List<RelaySetupInfo>) {
+    fun saveRelayList(
+        value: List<RelaySetupInfo>,
+        nip65List: List<RelaySetupInfo>,
+        nip17List: List<RelaySetupInfo>,
+    ) {
         try {
-            localRelays = value.toSet()
-            return sendNewRelayList(
+            localRelays = value.toSet() + nip65List.toSet() + nip17List.toSet()
+            sendNewRelayList(
                 value.associate { it.url to ContactListEvent.ReadWrite(it.read, it.write) },
+            )
+
+            sendNip65RelayList(
+                nip65List.map {
+                    val type =
+                        if (it.read && it.write) {
+                            AdvertisedRelayListEvent.AdvertisedRelayType.BOTH
+                        } else if (it.read) {
+                            AdvertisedRelayListEvent.AdvertisedRelayType.READ
+                        } else {
+                            AdvertisedRelayListEvent.AdvertisedRelayType.WRITE
+                        }
+                    AdvertisedRelayListEvent.AdvertisedRelayInfo(it.url, type)
+                },
+            )
+
+            sendNip17RelayList(
+                nip17List.map { it.url },
             )
         } finally {
             saveable.invalidateData()

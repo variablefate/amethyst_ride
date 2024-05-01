@@ -123,7 +123,7 @@ fun NewRelayListView(
     nav: (String) -> Unit,
 ) {
     val postViewModel: NewRelayListViewModel = viewModel()
-    LaunchedEffect(Unit) { postViewModel.load(accountViewModel.account) }
+    LaunchedEffect(accountViewModel) { postViewModel.load(accountViewModel.account) }
 
     NewRelayListDialog(postViewModel, relayToAdd, onClose, accountViewModel, nav)
 }

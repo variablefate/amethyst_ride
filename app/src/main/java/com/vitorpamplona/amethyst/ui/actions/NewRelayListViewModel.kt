@@ -23,12 +23,15 @@ package com.vitorpamplona.amethyst.ui.actions
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.vitorpamplona.amethyst.model.Account
+import com.vitorpamplona.amethyst.model.LocalCache
 import com.vitorpamplona.amethyst.model.RelaySetupInfo
 import com.vitorpamplona.amethyst.service.Nip11CachedRetriever
 import com.vitorpamplona.amethyst.service.relays.Constants
 import com.vitorpamplona.amethyst.service.relays.FeedType
 import com.vitorpamplona.amethyst.service.relays.RelayPool
+import com.vitorpamplona.quartz.events.AdvertisedRelayListEvent
 import com.vitorpamplona.quartz.events.ContactListEvent
+import com.vitorpamplona.quartz.events.DirectMessageRelayListEvent
 import kotlinx.collections.immutable.toImmutableSet
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,6 +45,12 @@ class NewRelayListViewModel : ViewModel() {
     private val _relays = MutableStateFlow<List<RelaySetupInfo>>(emptyList())
     val relays = _relays.asStateFlow()
 
+    private val _nip65Relays = MutableStateFlow<List<RelaySetupInfo>>(emptyList())
+    val nip65Relays = _relays.asStateFlow()
+
+    private val _nip17Relays = MutableStateFlow<List<RelaySetupInfo>>(emptyList())
+    val nip17Relays = _relays.asStateFlow()
+
     fun load(account: Account) {
         this.account = account
         reset()
@@ -49,11 +58,9 @@ class NewRelayListViewModel : ViewModel() {
     }
 
     fun create() {
-        relays.let {
-            viewModelScope.launch(Dispatchers.IO) {
-                account.saveRelayList(it.value)
-                reset()
-            }
+        viewModelScope.launch(Dispatchers.IO) {
+            account.saveRelayList(_relays.value, _nip65Relays.value, _nip17Relays.value)
+            reset()
         }
     }
 
@@ -162,6 +169,52 @@ class NewRelayListViewModel : ViewModel() {
 
         _relays.update {
             currentKind3List
+        }
+
+        val nip65Relays = LocalCache.getOrCreateAddressableNote(AdvertisedRelayListEvent.createAddressTag(account.userProfile().pubkeyHex)).event as? AdvertisedRelayListEvent
+        if (nip65Relays != null) {
+            val currentNip65list =
+                nip65Relays.relays().map {
+                    val liveRelay = RelayPool.getRelay(it.relayUrl)
+
+                    RelaySetupInfo(
+                        it.relayUrl,
+                        it.type == AdvertisedRelayListEvent.AdvertisedRelayType.BOTH || it.type == AdvertisedRelayListEvent.AdvertisedRelayType.READ,
+                        it.type == AdvertisedRelayListEvent.AdvertisedRelayType.BOTH || it.type == AdvertisedRelayListEvent.AdvertisedRelayType.WRITE,
+                        liveRelay?.errorCounter ?: 0,
+                        liveRelay?.eventDownloadCounterInBytes ?: 0,
+                        liveRelay?.eventUploadCounterInBytes ?: 0,
+                        liveRelay?.spamCounter ?: 0,
+                        setOf(FeedType.FOLLOWS),
+                    )
+                }
+
+            _nip65Relays.update {
+                currentNip65list
+            }
+        }
+
+        val nip17Relays = LocalCache.getOrCreateAddressableNote(DirectMessageRelayListEvent.createAddressTag(account.userProfile().pubkeyHex)).event as? DirectMessageRelayListEvent
+        if (nip17Relays != null) {
+            val currentNip17list =
+                nip17Relays.relays().map {
+                    val liveRelay = RelayPool.getRelay(it)
+
+                    RelaySetupInfo(
+                        it,
+                        true,
+                        true,
+                        liveRelay?.errorCounter ?: 0,
+                        liveRelay?.eventDownloadCounterInBytes ?: 0,
+                        liveRelay?.eventUploadCounterInBytes ?: 0,
+                        liveRelay?.spamCounter ?: 0,
+                        setOf(FeedType.FOLLOWS),
+                    )
+                }
+
+            _nip17Relays.update {
+                currentNip17list
+            }
         }
     }
 

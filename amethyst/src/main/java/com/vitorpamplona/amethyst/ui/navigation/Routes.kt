@@ -219,6 +219,13 @@ sealed class Route(
             icon = R.drawable.ic_settings,
         )
 
+    object Rideshare :
+        Route(
+            route = "rideshare",
+            icon = R.drawable.ic_directions_car,
+            contentDescriptor = R.string.rideshare,
+        )
+
     object EditProfile :
         Route(
             route = "EditProfile",

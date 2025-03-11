@@ -20,6 +20,9 @@
  */
 package com.vitorpamplona.quartz
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.registerKotlinModule
+import com.fasterxml.jackson.module.kotlin.treeToValue
 import com.vitorpamplona.quartz.blossom.BlossomAuthorizationEvent
 import com.vitorpamplona.quartz.blossom.BlossomServersEvent
 import com.vitorpamplona.quartz.experimental.audio.header.AudioHeaderEvent
@@ -36,10 +39,17 @@ import com.vitorpamplona.quartz.experimental.nns.NNSEvent
 import com.vitorpamplona.quartz.experimental.profileGallery.ProfileGalleryEntryEvent
 import com.vitorpamplona.quartz.experimental.relationshipStatus.RelationshipStatusEvent
 import com.vitorpamplona.quartz.experimental.zapPolls.PollNoteEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.DriverAvailabilityEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.DriverStatusEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.RideAcceptanceEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.RideConfirmationEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.RideOfferEvent
+import com.vitorpamplona.quartz.nip014173Rideshare.RideshareEventInterface
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.crypto.EventHasher
 import com.vitorpamplona.quartz.nip01Core.metadata.MetadataEvent
+import com.vitorpamplona.quartz.nip01Core.verify
 import com.vitorpamplona.quartz.nip02FollowList.ContactListEvent
 import com.vitorpamplona.quartz.nip03Timestamp.OtsEvent
 import com.vitorpamplona.quartz.nip04Dm.messages.PrivateDmEvent
@@ -118,6 +128,9 @@ import com.vitorpamplona.quartz.nip99Classifieds.ClassifiedsEvent
 
 class EventFactory {
     companion object {
+        // Create a single instance of ObjectMapper to be reused
+        private val sharedObjectMapper = ObjectMapper().registerKotlinModule()
+
         val factories: MutableMap<Int, (HexKey, HexKey, Long, Array<Array<String>>, String, HexKey) -> Event> = mutableMapOf()
 
         fun create(
@@ -251,6 +264,11 @@ class EventFactory {
                 VideoHorizontalEvent.KIND -> VideoHorizontalEvent(id, pubKey, createdAt, tags, content, sig)
                 VideoVerticalEvent.KIND -> VideoVerticalEvent(id, pubKey, createdAt, tags, content, sig)
                 WikiNoteEvent.KIND -> WikiNoteEvent(id, pubKey, createdAt, tags, content, sig)
+                RideshareEventInterface.DRIVER_AVAILABILITY -> DriverAvailabilityEvent(id, pubKey, createdAt, tags, content, sig)
+                RideshareEventInterface.RIDE_OFFER -> RideOfferEvent(id, pubKey, createdAt, tags, content, sig)
+                RideshareEventInterface.RIDE_ACCEPTANCE -> RideAcceptanceEvent(id, pubKey, createdAt, tags, content, sig)
+                RideshareEventInterface.RIDE_CONFIRMATION -> RideConfirmationEvent(id, pubKey, createdAt, tags, content, sig)
+                RideshareEventInterface.DRIVER_STATUS -> DriverStatusEvent(id, pubKey, createdAt, tags, content, sig)
                 else -> {
                     factories[kind]?.let {
                         return it(id, pubKey, createdAt, tags, content, sig)
@@ -260,4 +278,240 @@ class EventFactory {
                 }
             }
     }
+
+    fun fromJson(json: String): Event =
+        try {
+            val objectMapper = sharedObjectMapper
+            val rootNode = objectMapper.readTree(json)
+            val kind = rootNode.get("kind").asInt()
+
+            val obj =
+                when (kind) {
+                    AdvertisedRelayListEvent.KIND -> objectMapper.treeToValue(rootNode, AdvertisedRelayListEvent::class.java)
+                    AppDefinitionEvent.KIND -> objectMapper.treeToValue(rootNode, AppDefinitionEvent::class.java)
+                    AppRecommendationEvent.KIND -> objectMapper.treeToValue(rootNode, AppRecommendationEvent::class.java)
+                    AppSpecificDataEvent.KIND -> objectMapper.treeToValue(rootNode, AppSpecificDataEvent::class.java)
+                    AudioHeaderEvent.KIND -> objectMapper.treeToValue(rootNode, AudioHeaderEvent::class.java)
+                    AudioTrackEvent.KIND -> objectMapper.treeToValue(rootNode, AudioTrackEvent::class.java)
+                    BadgeAwardEvent.KIND -> objectMapper.treeToValue(rootNode, BadgeAwardEvent::class.java)
+                    BadgeDefinitionEvent.KIND -> objectMapper.treeToValue(rootNode, BadgeDefinitionEvent::class.java)
+                    BadgeProfilesEvent.KIND -> objectMapper.treeToValue(rootNode, BadgeProfilesEvent::class.java)
+                    BlossomServersEvent.KIND -> objectMapper.treeToValue(rootNode, BlossomServersEvent::class.java)
+                    BlossomAuthorizationEvent.KIND -> objectMapper.treeToValue(rootNode, BlossomAuthorizationEvent::class.java)
+                    BookmarkListEvent.KIND -> objectMapper.treeToValue(rootNode, BookmarkListEvent::class.java)
+                    CalendarDateSlotEvent.KIND -> objectMapper.treeToValue(rootNode, CalendarDateSlotEvent::class.java)
+                    CalendarEvent.KIND -> objectMapper.treeToValue(rootNode, CalendarEvent::class.java)
+                    CalendarTimeSlotEvent.KIND -> objectMapper.treeToValue(rootNode, CalendarTimeSlotEvent::class.java)
+                    CalendarRSVPEvent.KIND -> objectMapper.treeToValue(rootNode, CalendarRSVPEvent::class.java)
+                    ChannelCreateEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelCreateEvent::class.java)
+                    ChannelHideMessageEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelHideMessageEvent::class.java)
+                    ChannelListEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelListEvent::class.java)
+                    ChannelMessageEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelMessageEvent::class.java)
+                    ChannelMetadataEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelMetadataEvent::class.java)
+                    ChannelMuteUserEvent.KIND -> objectMapper.treeToValue(rootNode, ChannelMuteUserEvent::class.java)
+                    ChatMessageEncryptedFileHeaderEvent.KIND -> objectMapper.treeToValue(rootNode, ChatMessageEncryptedFileHeaderEvent::class.java)
+                    ChatMessageEvent.KIND -> objectMapper.treeToValue(rootNode, ChatMessageEvent::class.java)
+                    ChatMessageRelayListEvent.KIND -> objectMapper.treeToValue(rootNode, ChatMessageRelayListEvent::class.java)
+                    ClassifiedsEvent.KIND -> objectMapper.treeToValue(rootNode, ClassifiedsEvent::class.java)
+                    CommentEvent.KIND -> objectMapper.treeToValue(rootNode, CommentEvent::class.java)
+                    CommunityDefinitionEvent.KIND -> objectMapper.treeToValue(rootNode, CommunityDefinitionEvent::class.java)
+                    CommunityListEvent.KIND -> objectMapper.treeToValue(rootNode, CommunityListEvent::class.java)
+                    CommunityPostApprovalEvent.KIND -> objectMapper.treeToValue(rootNode, CommunityPostApprovalEvent::class.java)
+                    ContactListEvent.KIND -> objectMapper.treeToValue(rootNode, ContactListEvent::class.java)
+                    DeletionEvent.KIND -> objectMapper.treeToValue(rootNode, DeletionEvent::class.java)
+                    DraftEvent.KIND -> objectMapper.treeToValue(rootNode, DraftEvent::class.java)
+                    EmojiPackEvent.KIND -> objectMapper.treeToValue(rootNode, EmojiPackEvent::class.java)
+                    EmojiPackSelectionEvent.KIND -> objectMapper.treeToValue(rootNode, EmojiPackSelectionEvent::class.java)
+                    FileHeaderEvent.KIND -> objectMapper.treeToValue(rootNode, FileHeaderEvent::class.java)
+                    ProfileGalleryEntryEvent.KIND -> objectMapper.treeToValue(rootNode, ProfileGalleryEntryEvent::class.java)
+                    FileServersEvent.KIND -> objectMapper.treeToValue(rootNode, FileServersEvent::class.java)
+                    FileStorageEvent.KIND -> objectMapper.treeToValue(rootNode, FileStorageEvent::class.java)
+                    FileStorageHeaderEvent.KIND -> objectMapper.treeToValue(rootNode, FileStorageHeaderEvent::class.java)
+                    FhirResourceEvent.KIND -> objectMapper.treeToValue(rootNode, FhirResourceEvent::class.java)
+                    GenericRepostEvent.KIND -> objectMapper.treeToValue(rootNode, GenericRepostEvent::class.java)
+                    GiftWrapEvent.KIND -> objectMapper.treeToValue(rootNode, GiftWrapEvent::class.java)
+                    GitIssueEvent.KIND -> objectMapper.treeToValue(rootNode, GitIssueEvent::class.java)
+                    GitReplyEvent.KIND -> objectMapper.treeToValue(rootNode, GitReplyEvent::class.java)
+                    GitPatchEvent.KIND -> objectMapper.treeToValue(rootNode, GitPatchEvent::class.java)
+                    GitRepositoryEvent.KIND -> objectMapper.treeToValue(rootNode, GitRepositoryEvent::class.java)
+                    GoalEvent.KIND -> objectMapper.treeToValue(rootNode, GoalEvent::class.java)
+                    HighlightEvent.KIND -> objectMapper.treeToValue(rootNode, HighlightEvent::class.java)
+                    HTTPAuthorizationEvent.KIND -> objectMapper.treeToValue(rootNode, HTTPAuthorizationEvent::class.java)
+                    InteractiveStoryPrologueEvent.KIND -> objectMapper.treeToValue(rootNode, InteractiveStoryPrologueEvent::class.java)
+                    InteractiveStorySceneEvent.KIND -> objectMapper.treeToValue(rootNode, InteractiveStorySceneEvent::class.java)
+                    InteractiveStoryReadingStateEvent.KIND -> objectMapper.treeToValue(rootNode, InteractiveStoryReadingStateEvent::class.java)
+                    LiveActivitiesChatMessageEvent.KIND -> objectMapper.treeToValue(rootNode, LiveActivitiesChatMessageEvent::class.java)
+                    LiveActivitiesEvent.KIND -> objectMapper.treeToValue(rootNode, LiveActivitiesEvent::class.java)
+                    LnZapEvent.KIND -> objectMapper.treeToValue(rootNode, LnZapEvent::class.java)
+                    LnZapPaymentRequestEvent.KIND -> objectMapper.treeToValue(rootNode, LnZapPaymentRequestEvent::class.java)
+                    LnZapPaymentResponseEvent.KIND -> objectMapper.treeToValue(rootNode, LnZapPaymentResponseEvent::class.java)
+                    LnZapPrivateEvent.KIND -> objectMapper.treeToValue(rootNode, LnZapPrivateEvent::class.java)
+                    LnZapRequestEvent.KIND -> objectMapper.treeToValue(rootNode, LnZapRequestEvent::class.java)
+                    LongTextNoteEvent.KIND -> objectMapper.treeToValue(rootNode, LongTextNoteEvent::class.java)
+                    MetadataEvent.KIND -> objectMapper.treeToValue(rootNode, MetadataEvent::class.java)
+                    MuteListEvent.KIND -> objectMapper.treeToValue(rootNode, MuteListEvent::class.java)
+                    NNSEvent.KIND -> objectMapper.treeToValue(rootNode, NNSEvent::class.java)
+                    com.vitorpamplona.quartz.nip46RemoteSigner.NostrConnectEvent.KIND -> objectMapper.treeToValue(rootNode, com.vitorpamplona.quartz.nip46RemoteSigner.NostrConnectEvent::class.java)
+                    NIP90StatusEvent.KIND -> objectMapper.treeToValue(rootNode, NIP90StatusEvent::class.java)
+                    NIP90ContentDiscoveryRequestEvent.KIND -> objectMapper.treeToValue(rootNode, NIP90ContentDiscoveryRequestEvent::class.java)
+                    NIP90ContentDiscoveryResponseEvent.KIND -> objectMapper.treeToValue(rootNode, NIP90ContentDiscoveryResponseEvent::class.java)
+                    NIP90UserDiscoveryRequestEvent.KIND -> objectMapper.treeToValue(rootNode, NIP90UserDiscoveryRequestEvent::class.java)
+                    NIP90UserDiscoveryResponseEvent.KIND -> objectMapper.treeToValue(rootNode, NIP90UserDiscoveryResponseEvent::class.java)
+                    OtsEvent.KIND -> objectMapper.treeToValue(rootNode, OtsEvent::class.java)
+                    PeopleListEvent.KIND -> objectMapper.treeToValue(rootNode, PeopleListEvent::class.java)
+                    PictureEvent.KIND -> objectMapper.treeToValue(rootNode, PictureEvent::class.java)
+                    PinListEvent.KIND -> objectMapper.treeToValue(rootNode, PinListEvent::class.java)
+                    PollNoteEvent.KIND -> objectMapper.treeToValue(rootNode, PollNoteEvent::class.java)
+                    PrivateDmEvent.KIND -> objectMapper.treeToValue(rootNode, PrivateDmEvent::class.java)
+                    PrivateOutboxRelayListEvent.KIND -> objectMapper.treeToValue(rootNode, PrivateOutboxRelayListEvent::class.java)
+                    ReactionEvent.KIND -> objectMapper.treeToValue(rootNode, ReactionEvent::class.java)
+                    RelationshipStatusEvent.KIND -> objectMapper.treeToValue(rootNode, RelationshipStatusEvent::class.java)
+                    RelayAuthEvent.KIND -> objectMapper.treeToValue(rootNode, RelayAuthEvent::class.java)
+                    RelaySetEvent.KIND -> objectMapper.treeToValue(rootNode, RelaySetEvent::class.java)
+                    ReportEvent.KIND -> objectMapper.treeToValue(rootNode, ReportEvent::class.java)
+                    RepostEvent.KIND -> objectMapper.treeToValue(rootNode, RepostEvent::class.java)
+                    SealedRumorEvent.KIND -> objectMapper.treeToValue(rootNode, SealedRumorEvent::class.java)
+                    SearchRelayListEvent.KIND -> objectMapper.treeToValue(rootNode, SearchRelayListEvent::class.java)
+                    StatusEvent.KIND -> objectMapper.treeToValue(rootNode, StatusEvent::class.java)
+                    TextNoteEvent.KIND -> objectMapper.treeToValue(rootNode, TextNoteEvent::class.java)
+                    TextNoteModificationEvent.KIND -> objectMapper.treeToValue(rootNode, TextNoteModificationEvent::class.java)
+                    TorrentEvent.KIND -> objectMapper.treeToValue(rootNode, TorrentEvent::class.java)
+                    TorrentCommentEvent.KIND -> objectMapper.treeToValue(rootNode, TorrentCommentEvent::class.java)
+                    VideoHorizontalEvent.KIND -> objectMapper.treeToValue(rootNode, VideoHorizontalEvent::class.java)
+                    VideoVerticalEvent.KIND -> objectMapper.treeToValue(rootNode, VideoVerticalEvent::class.java)
+                    WikiNoteEvent.KIND -> objectMapper.treeToValue(rootNode, WikiNoteEvent::class.java)
+                    RideshareEventInterface.DRIVER_AVAILABILITY -> objectMapper.treeToValue(rootNode, DriverAvailabilityEvent::class.java)
+                    RideshareEventInterface.RIDE_OFFER -> objectMapper.treeToValue(rootNode, RideOfferEvent::class.java)
+                    RideshareEventInterface.RIDE_ACCEPTANCE -> objectMapper.treeToValue(rootNode, RideAcceptanceEvent::class.java)
+                    RideshareEventInterface.RIDE_CONFIRMATION -> objectMapper.treeToValue(rootNode, RideConfirmationEvent::class.java)
+                    RideshareEventInterface.DRIVER_STATUS -> objectMapper.treeToValue(rootNode, DriverStatusEvent::class.java)
+                    else -> objectMapper.treeToValue(rootNode, Event::class.java)
+                }
+
+            if (obj.verify()) {
+                obj
+            } else {
+                throw Exception("Mismatched event id or signature")
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            throw e
+        }
+
+    fun createObject(
+        id: HexKey,
+        pubKey: HexKey,
+        createdAt: Long,
+        kind: Int,
+        tags: Array<Array<String>>,
+        content: String,
+        sig: HexKey,
+    ): Event =
+        when (kind) {
+            AdvertisedRelayListEvent.KIND -> AdvertisedRelayListEvent(id, pubKey, createdAt, tags, content, sig)
+            AppDefinitionEvent.KIND -> AppDefinitionEvent(id, pubKey, createdAt, tags, content, sig)
+            AppRecommendationEvent.KIND -> AppRecommendationEvent(id, pubKey, createdAt, tags, content, sig)
+            AppSpecificDataEvent.KIND -> AppSpecificDataEvent(id, pubKey, createdAt, tags, content, sig)
+            AudioHeaderEvent.KIND -> AudioHeaderEvent(id, pubKey, createdAt, tags, content, sig)
+            AudioTrackEvent.KIND -> AudioTrackEvent(id, pubKey, createdAt, tags, content, sig)
+            BadgeAwardEvent.KIND -> BadgeAwardEvent(id, pubKey, createdAt, tags, content, sig)
+            BadgeDefinitionEvent.KIND -> BadgeDefinitionEvent(id, pubKey, createdAt, tags, content, sig)
+            BadgeProfilesEvent.KIND -> BadgeProfilesEvent(id, pubKey, createdAt, tags, content, sig)
+            BlossomServersEvent.KIND -> BlossomServersEvent(id, pubKey, createdAt, tags, content, sig)
+            BlossomAuthorizationEvent.KIND -> BlossomAuthorizationEvent(id, pubKey, createdAt, tags, content, sig)
+            BookmarkListEvent.KIND -> BookmarkListEvent(id, pubKey, createdAt, tags, content, sig)
+            CalendarDateSlotEvent.KIND -> CalendarDateSlotEvent(id, pubKey, createdAt, tags, content, sig)
+            CalendarEvent.KIND -> CalendarEvent(id, pubKey, createdAt, tags, content, sig)
+            CalendarTimeSlotEvent.KIND -> CalendarTimeSlotEvent(id, pubKey, createdAt, tags, content, sig)
+            CalendarRSVPEvent.KIND -> CalendarRSVPEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelCreateEvent.KIND -> ChannelCreateEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelHideMessageEvent.KIND -> ChannelHideMessageEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelListEvent.KIND -> ChannelListEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelMessageEvent.KIND -> ChannelMessageEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelMetadataEvent.KIND -> ChannelMetadataEvent(id, pubKey, createdAt, tags, content, sig)
+            ChannelMuteUserEvent.KIND -> ChannelMuteUserEvent(id, pubKey, createdAt, tags, content, sig)
+            ChatMessageEncryptedFileHeaderEvent.KIND -> ChatMessageEncryptedFileHeaderEvent(id, pubKey, createdAt, tags, content, sig)
+            ChatMessageEvent.KIND -> ChatMessageEvent(id, pubKey, createdAt, tags, content, sig)
+            ChatMessageRelayListEvent.KIND -> ChatMessageRelayListEvent(id, pubKey, createdAt, tags, content, sig)
+            ClassifiedsEvent.KIND -> ClassifiedsEvent(id, pubKey, createdAt, tags, content, sig)
+            CommentEvent.KIND -> CommentEvent(id, pubKey, createdAt, tags, content, sig)
+            CommunityDefinitionEvent.KIND -> CommunityDefinitionEvent(id, pubKey, createdAt, tags, content, sig)
+            CommunityListEvent.KIND -> CommunityListEvent(id, pubKey, createdAt, tags, content, sig)
+            CommunityPostApprovalEvent.KIND -> CommunityPostApprovalEvent(id, pubKey, createdAt, tags, content, sig)
+            ContactListEvent.KIND -> ContactListEvent(id, pubKey, createdAt, tags, content, sig)
+            DeletionEvent.KIND -> DeletionEvent(id, pubKey, createdAt, tags, content, sig)
+            DraftEvent.KIND -> DraftEvent(id, pubKey, createdAt, tags, content, sig)
+            EmojiPackEvent.KIND -> EmojiPackEvent(id, pubKey, createdAt, tags, content, sig)
+            EmojiPackSelectionEvent.KIND -> EmojiPackSelectionEvent(id, pubKey, createdAt, tags, content, sig)
+            FileHeaderEvent.KIND -> FileHeaderEvent(id, pubKey, createdAt, tags, content, sig)
+            ProfileGalleryEntryEvent.KIND -> ProfileGalleryEntryEvent(id, pubKey, createdAt, tags, content, sig)
+            FileServersEvent.KIND -> FileServersEvent(id, pubKey, createdAt, tags, content, sig)
+            FileStorageEvent.KIND -> FileStorageEvent(id, pubKey, createdAt, tags, content, sig)
+            FileStorageHeaderEvent.KIND -> FileStorageHeaderEvent(id, pubKey, createdAt, tags, content, sig)
+            FhirResourceEvent.KIND -> FhirResourceEvent(id, pubKey, createdAt, tags, content, sig)
+            GenericRepostEvent.KIND -> GenericRepostEvent(id, pubKey, createdAt, tags, content, sig)
+            GiftWrapEvent.KIND -> GiftWrapEvent(id, pubKey, createdAt, tags, content, sig)
+            GitIssueEvent.KIND -> GitIssueEvent(id, pubKey, createdAt, tags, content, sig)
+            GitReplyEvent.KIND -> GitReplyEvent(id, pubKey, createdAt, tags, content, sig)
+            GitPatchEvent.KIND -> GitPatchEvent(id, pubKey, createdAt, tags, content, sig)
+            GitRepositoryEvent.KIND -> GitRepositoryEvent(id, pubKey, createdAt, tags, content, sig)
+            GoalEvent.KIND -> GoalEvent(id, pubKey, createdAt, tags, content, sig)
+            HighlightEvent.KIND -> HighlightEvent(id, pubKey, createdAt, tags, content, sig)
+            HTTPAuthorizationEvent.KIND -> HTTPAuthorizationEvent(id, pubKey, createdAt, tags, content, sig)
+            InteractiveStoryPrologueEvent.KIND -> InteractiveStoryPrologueEvent(id, pubKey, createdAt, tags, content, sig)
+            InteractiveStorySceneEvent.KIND -> InteractiveStorySceneEvent(id, pubKey, createdAt, tags, content, sig)
+            InteractiveStoryReadingStateEvent.KIND -> InteractiveStoryReadingStateEvent(id, pubKey, createdAt, tags, content, sig)
+            LiveActivitiesChatMessageEvent.KIND -> LiveActivitiesChatMessageEvent(id, pubKey, createdAt, tags, content, sig)
+            LiveActivitiesEvent.KIND -> LiveActivitiesEvent(id, pubKey, createdAt, tags, content, sig)
+            LnZapEvent.KIND -> LnZapEvent(id, pubKey, createdAt, tags, content, sig)
+            LnZapPaymentRequestEvent.KIND -> LnZapPaymentRequestEvent(id, pubKey, createdAt, tags, content, sig)
+            LnZapPaymentResponseEvent.KIND -> LnZapPaymentResponseEvent(id, pubKey, createdAt, tags, content, sig)
+            LnZapPrivateEvent.KIND -> LnZapPrivateEvent(id, pubKey, createdAt, tags, content, sig)
+            LnZapRequestEvent.KIND -> LnZapRequestEvent(id, pubKey, createdAt, tags, content, sig)
+            LongTextNoteEvent.KIND -> LongTextNoteEvent(id, pubKey, createdAt, tags, content, sig)
+            MetadataEvent.KIND -> MetadataEvent(id, pubKey, createdAt, tags, content, sig)
+            MuteListEvent.KIND -> MuteListEvent(id, pubKey, createdAt, tags, content, sig)
+            NNSEvent.KIND -> NNSEvent(id, pubKey, createdAt, tags, content, sig)
+            com.vitorpamplona.quartz.nip46RemoteSigner.NostrConnectEvent.KIND ->
+                com.vitorpamplona.quartz.nip46RemoteSigner
+                    .NostrConnectEvent(id, pubKey, createdAt, tags, content, sig)
+            NIP90StatusEvent.KIND -> NIP90StatusEvent(id, pubKey, createdAt, tags, content, sig)
+            NIP90ContentDiscoveryRequestEvent.KIND -> NIP90ContentDiscoveryRequestEvent(id, pubKey, createdAt, tags, content, sig)
+            NIP90ContentDiscoveryResponseEvent.KIND -> NIP90ContentDiscoveryResponseEvent(id, pubKey, createdAt, tags, content, sig)
+            NIP90UserDiscoveryRequestEvent.KIND -> NIP90UserDiscoveryRequestEvent(id, pubKey, createdAt, tags, content, sig)
+            NIP90UserDiscoveryResponseEvent.KIND -> NIP90UserDiscoveryResponseEvent(id, pubKey, createdAt, tags, content, sig)
+            OtsEvent.KIND -> OtsEvent(id, pubKey, createdAt, tags, content, sig)
+            PeopleListEvent.KIND -> PeopleListEvent(id, pubKey, createdAt, tags, content, sig)
+            PictureEvent.KIND -> PictureEvent(id, pubKey, createdAt, tags, content, sig)
+            PinListEvent.KIND -> PinListEvent(id, pubKey, createdAt, tags, content, sig)
+            PollNoteEvent.KIND -> PollNoteEvent(id, pubKey, createdAt, tags, content, sig)
+            PrivateDmEvent.KIND -> PrivateDmEvent(id, pubKey, createdAt, tags, content, sig)
+            PrivateOutboxRelayListEvent.KIND -> PrivateOutboxRelayListEvent(id, pubKey, createdAt, tags, content, sig)
+            ReactionEvent.KIND -> ReactionEvent(id, pubKey, createdAt, tags, content, sig)
+            RelationshipStatusEvent.KIND -> RelationshipStatusEvent(id, pubKey, createdAt, tags, content, sig)
+            RelayAuthEvent.KIND -> RelayAuthEvent(id, pubKey, createdAt, tags, content, sig)
+            RelaySetEvent.KIND -> RelaySetEvent(id, pubKey, createdAt, tags, content, sig)
+            ReportEvent.KIND -> ReportEvent(id, pubKey, createdAt, tags, content, sig)
+            RepostEvent.KIND -> RepostEvent(id, pubKey, createdAt, tags, content, sig)
+            SealedRumorEvent.KIND -> SealedRumorEvent(id, pubKey, createdAt, tags, content, sig)
+            SearchRelayListEvent.KIND -> SearchRelayListEvent(id, pubKey, createdAt, tags, content, sig)
+            StatusEvent.KIND -> StatusEvent(id, pubKey, createdAt, tags, content, sig)
+            TextNoteEvent.KIND -> TextNoteEvent(id, pubKey, createdAt, tags, content, sig)
+            TextNoteModificationEvent.KIND -> TextNoteModificationEvent(id, pubKey, createdAt, tags, content, sig)
+            TorrentEvent.KIND -> TorrentEvent(id, pubKey, createdAt, tags, content, sig)
+            TorrentCommentEvent.KIND -> TorrentCommentEvent(id, pubKey, createdAt, tags, content, sig)
+            VideoHorizontalEvent.KIND -> VideoHorizontalEvent(id, pubKey, createdAt, tags, content, sig)
+            VideoVerticalEvent.KIND -> VideoVerticalEvent(id, pubKey, createdAt, tags, content, sig)
+            WikiNoteEvent.KIND -> WikiNoteEvent(id, pubKey, createdAt, tags, content, sig)
+            RideshareEventInterface.DRIVER_AVAILABILITY -> DriverAvailabilityEvent(id, pubKey, createdAt, tags, content, sig)
+            RideshareEventInterface.RIDE_OFFER -> RideOfferEvent(id, pubKey, createdAt, tags, content, sig)
+            RideshareEventInterface.RIDE_ACCEPTANCE -> RideAcceptanceEvent(id, pubKey, createdAt, tags, content, sig)
+            RideshareEventInterface.RIDE_CONFIRMATION -> RideConfirmationEvent(id, pubKey, createdAt, tags, content, sig)
+            RideshareEventInterface.DRIVER_STATUS -> DriverStatusEvent(id, pubKey, createdAt, tags, content, sig)
+            else -> {
+                factories[kind]?.let {
+                    it.invoke(id, pubKey, createdAt, tags, content, sig)
+                } ?: Event(id, pubKey, createdAt, kind, tags, content, sig)
+            }
+        }
 }

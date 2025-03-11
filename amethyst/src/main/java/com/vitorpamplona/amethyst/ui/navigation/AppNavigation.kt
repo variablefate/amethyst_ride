@@ -73,6 +73,7 @@ import com.vitorpamplona.amethyst.ui.screen.loggedIn.hashtag.HashtagScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.home.HomeScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.notifications.NotificationScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.profile.ProfileScreen
+import com.vitorpamplona.amethyst.ui.screen.loggedIn.rideshare.RideshareScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.search.SearchScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.settings.NIP47SetupScreen
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.settings.SecurityFiltersScreen
@@ -125,6 +126,7 @@ fun AppNavigation(
             composable(Route.Discover.route) { DiscoverScreen(accountViewModel, nav) }
             composable(Route.Notification.route) { NotificationScreen(sharedPreferencesViewModel, accountViewModel, nav) }
             composable(Route.EditProfile.route) { NewUserMetadataScreen(nav, accountViewModel) }
+            composable(Route.Rideshare.route) { RideshareScreen(accountViewModel, onBack = { nav.popBackStack() }) }
 
             composable(Route.Search.route) { SearchScreen(accountViewModel, nav) }
 

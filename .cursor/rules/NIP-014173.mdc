@@ -1,0 +1,324 @@
+---
+description: Structure of NIP-014173
+globs: 
+alwaysApply: false
+---
+## Structure of NIP-014173.
+
+
+This NIP defines a decentralized ridesharing protocol leveraging Nostr for peer-to-peer communication between riders and drivers. It introduces custom event kinds to enable a privacy-focused process where drivers broadcast availability, riders send ride offers, and a handshake ensures mutual agreement before sensitive data is shared. Bitcoin Lightning payments are integrated, triggered after ride completion.
+
+
+Definitions
+Driver: A user offering rides, periodically broadcasting their approximate location.
+
+Rider: A user seeking a ride, sharing location and destination selectively.
+
+Approximate Location: Coarse coordinates (e.g., city-level) to protect privacy.
+
+Precise Location: Exact coordinates and address, shared only after mutual agreement.
+
+Handshake: A mutual agreement process before exchanging sensitive data.
+
+Specification
+This NIP defines five custom event kinds (3000–3004) within Nostr’s regular event range (1000–9999) for relay compatibility. All events conform to the standard Nostr event structure as defined in NIP-01:
+id: 32-byte lowercase hex-encoded SHA256 hash of the serialized event data.
+
+pubkey: 32-byte lowercase hex-encoded public key of the event creator.
+
+created_at: Unix timestamp in seconds.
+
+kind: Integer between 0 and 65535.
+
+tags: Array of arrays containing arbitrary strings (e.g., ["e", "<event-id>"], ["p", "<pubkey>"]).
+
+content: Arbitrary string (often JSON in this NIP).
+
+sig: 64-byte lowercase hex-encoded signature of the SHA256 hash of the serialized event data.
+
+Kind 3000: Searching for Rider
+Description: Driver broadcasts availability to potential riders.
+
+Fields:
+id: Unique event identifier (SHA256 hash of serialized data).
+
+pubkey: Driver’s public key.
+
+created_at: Unix timestamp of event creation.
+
+kind: 3000.
+
+tags: [["p", "<driver-pubkey>"]].
+
+content: JSON object with approx_location (latitude, longitude).
+json
+
+{
+  "approx_location": {"lat": 37.78, "lon": -122.42}
+}
+
+sig: Signature of the event’s SHA256 hash.
+
+Notes: The "p" tag explicitly ties the event to the driver’s public key (redundant with pubkey for clarity and compatibility).
+
+Kind 3001: Ride Offer
+Description: Rider sends a ride offer to a specific driver.
+
+Fields:
+id: Unique event identifier.
+
+pubkey: Rider’s public key.
+
+created_at: Unix timestamp of event creation.
+
+kind: 3001.
+
+tags: [["e", "<kind-3000-event-id>"], ["p", "<driver-pubkey>"]].
+
+content: JSON object with fare_estimate, destination, and approx_pickup.
+json
+
+{
+  "fare_estimate": "0.0005 BTC",
+  "destination": {"lat": 37.79, "lon": -122.39},
+  "approx_pickup": {"lat": 37.77, "lon": -122.41}
+}
+
+sig: Signature of the event’s SHA256 hash.
+
+Kind 3002: Ride Acceptance
+Description: Driver accepts the rider’s offer.
+
+Fields:
+id: Unique event identifier.
+
+pubkey: Driver’s public key.
+
+created_at: Unix timestamp of event creation.
+
+kind: 3002.
+
+tags: [["e", "<kind-3001-event-id>"], ["p", "<rider-pubkey>"]].
+
+content: JSON object with status: "accepted".
+json
+
+{
+  "status": "accepted"
+}
+
+sig: Signature of the event’s SHA256 hash.
+
+Kind 3003: Ride Confirmation
+Description: Rider confirms the ride and shares their precise pickup location.
+
+Fields:
+id: Unique event identifier.
+
+pubkey: Rider’s public key.
+
+created_at: Unix timestamp of event creation.
+
+kind: 3003.
+
+tags: [["e", "<kind-3002-event-id>"], ["p", "<driver-pubkey>"]].
+
+content: Encrypted JSON (using NIP-44) with precise_pickup (latitude, longitude, address).
+json
+
+{
+  "precise_pickup": {"lat": 37.7749, "lon": -122.4194, "address": "123 Main St"}
+}
+
+sig: Signature of the event’s SHA256 hash.
+
+Kind 3004: Driver Status
+Description: Driver sends periodic updates during the ride, including status and approximate location. Upon completion, it includes payment details.
+
+Fields:
+id: Unique event identifier.
+
+pubkey: Driver’s public key.
+
+created_at: Unix timestamp of event creation.
+
+kind: 3004.
+
+tags: [["e", "<kind-3003-event-id>"], ["p", "<rider-pubkey>"]].
+
+content: JSON object with:
+status: String (e.g., "on the way", "getting close", "completed").
+
+approx_location: Object with latitude and longitude.
+
+When status: "completed", additional fields: final_fare and invoice.
+
+sig: Signature of the event’s SHA256 hash.
+
+Examples:
+json
+
+// On the way to pickup
+{
+  "status": "on the way",
+  "approx_location": {"lat": 37.78, "lon": -122.42}
+}
+
+json
+
+// Nearing the rider
+{
+  "status": "getting close",
+  "approx_location": {"lat": 37.77, "lon": -122.41}
+}
+
+json
+
+// Ride completed
+{
+  "status": "completed",
+  "approx_location": {"lat": 37.79, "lon": -122.39},
+  "final_fare": "0.0006 BTC",
+  "invoice": "lnbc..."
+}
+
+Dependencies
+NIP-01: Defines the standard event structure.
+
+NIP-44: Enables encryption of precise pickup location data.
+
+Full Flow Specification Including Payments
+This specification outlines the complete ridesharing process, integrating Nostr events with a Bitcoin Lightning payment handshake, ensuring privacy, security, and decentralization.
+Process Flow
+Driver Broadcasts Availability
+The driver publishes a Kind 3000 event ("Searching for Rider") with their approximate location.
+
+Example content: {"approx_location": {"lat": 37.78, "lon": -122.42}}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<driver-pubkey>",
+  "created_at": 1698765432,
+  "kind": 3000,
+  "tags": [["p", "<driver-pubkey>"]],
+  "content": "{\"approx_location\": {\"lat\": 37.78, \"lon\": -122.42}}",
+  "sig": "<64-byte-hex>"
+}
+
+Rider Sends Ride Offer
+The rider calculates a fare estimate using local tools (e.g., GraphHopper) and sends a Kind 3001 event ("Ride Offer").
+
+Example content: {"fare_estimate": "0.0005 BTC", "destination": {"lat": 37.79, "lon": -122.39}, "approx_pickup": {"lat": 37.77, "lon": -122.41}}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<rider-pubkey>",
+  "created_at": 1698765450,
+  "kind": 3001,
+  "tags": [["e", "<kind-3000-id>"], ["p", "<driver-pubkey>"]],
+  "content": "{\"fare_estimate\": \"0.0005 BTC\", \"destination\": {\"lat\": 37.79, \"lon\": -122.39}, \"approx_pickup\": {\"lat\": 37.77, \"lon\": -122.41}}",
+  "sig": "<64-byte-hex>"
+}
+
+Driver Accepts Offer
+The driver sends a Kind 3002 event ("Ride Acceptance").
+
+Example content: {"status": "accepted"}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<driver-pubkey>",
+  "created_at": 1698765470,
+  "kind": 3002,
+  "tags": [["e", "<kind-3001-id>"], ["p", "<rider-pubkey>"]],
+  "content": "{\"status\": \"accepted\"}",
+  "sig": "<64-byte-hex>"
+}
+
+Rider Confirms Ride
+The rider sends a Kind 3003 event ("Ride Confirmation") with encrypted precise pickup details.
+
+Example content (encrypted): <nip-44-encrypted>{"precise_pickup": {"lat": 37.7749, "lon": -122.4194, "address": "123 Main St"}}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<rider-pubkey>",
+  "created_at": 1698765490,
+  "kind": 3003,
+  "tags": [["e", "<kind-3002-id>"], ["p", "<driver-pubkey>"]],
+  "content": "<encrypted-string>",
+  "sig": "<64-byte-hex>"
+}
+
+Driver Sends Status Updates
+The driver sends periodic Kind 3004 events ("Driver Status").
+
+Example content (on the way): {"status": "on the way", "approx_location": {"lat": 37.78, "lon": -122.42}}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<driver-pubkey>",
+  "created_at": 1698765510,
+  "kind": 3004,
+  "tags": [["e", "<kind-3003-id>"], ["p", "<rider-pubkey>"]],
+  "content": "{\"status\": \"on the way\", \"approx_location\": {\"lat\": 37.78, \"lon\": -122.42}}",
+  "sig": "<64-byte-hex>"
+}
+
+Ride Completion and Payment Request
+The driver sends a final Kind 3004 event with payment details.
+
+Example content: {"status": "completed", "approx_location": {"lat": 37.79, "lon": -122.39}, "final_fare": "0.0006 BTC", "invoice": "lnbc..."}.
+
+Full Event:
+json
+
+{
+  "id": "<32-byte-hex>",
+  "pubkey": "<driver-pubkey>",
+  "created_at": 1698765600,
+  "kind": 3004,
+  "tags": [["e", "<kind-3003-id>"], ["p", "<rider-pubkey>"]],
+  "content": "{\"status\": \"completed\", \"approx_location\": {\"lat\": 37.79, \"lon\": -122.39}, \"final_fare\": \"0.0006 BTC\", \"invoice\": \"lnbc...\"}",
+  "sig": "<64-byte-hex>"
+}
+
+Rider Manually Confirms Payment
+The rider’s app prompts for payment confirmation, attempts payment via Nostr Wallet Connect (NWC), or displays the invoice for manual payment if NWC fails.
+
+Payment Confirmation via Encrypted DM
+After payment, the rider sends an encrypted direct message (NIP-44) to the driver with status: "paid" and invoice details.
+
+Payment Handshake Details
+Trigger: Final Kind 3004 event with status: "completed".
+
+Manual Confirmation: Rider explicitly confirms payment.
+
+NWC Attempt: App attempts automated payment via NWC.
+
+Fallback: Rider pays manually using the Lightning invoice if NWC fails.
+
+Confirmation: Encrypted DM confirms payment to the driver.
+
+Privacy and Security
+Location Privacy: Precise location shared only after confirmation, encrypted via NIP-44.
+
+Payment Privacy: Payment details exchanged via encrypted DMs.
+
+Reputation: Trust enforced through a decentralized reputation system (e.g., ratings).
+

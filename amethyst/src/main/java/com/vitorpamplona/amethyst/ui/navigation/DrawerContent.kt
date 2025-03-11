@@ -468,6 +468,14 @@ fun ListContent(
             route = Route.Drafts.route,
         )
 
+        NavigationRow(
+            title = stringRes(R.string.rideshare),
+            icon = Route.Rideshare.icon,
+            tint = MaterialTheme.colorScheme.onBackground,
+            nav = nav,
+            route = Route.Rideshare.route,
+        )
+
         IconRowRelays(
             accountViewModel = accountViewModel,
             onClick = {

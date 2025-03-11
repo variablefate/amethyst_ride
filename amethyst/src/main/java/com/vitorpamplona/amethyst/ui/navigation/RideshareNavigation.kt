@@ -32,6 +32,22 @@ import androidx.navigation.compose.composable
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.rideshare.RideshareScreen
 
+/**
+ * Interface for defining navigation destinations in the app
+ */
+interface Destination {
+    val route: String
+    val icon: ImageVector
+    val selectedIcon: ImageVector
+    val resourceId: String
+
+    @Composable
+    fun Screen(
+        navController: NavController,
+        accountViewModel: AccountViewModel,
+    )
+}
+
 fun NavGraphBuilder.rideshareGraph(
     navController: NavHostController,
     accountViewModel: AccountViewModel,

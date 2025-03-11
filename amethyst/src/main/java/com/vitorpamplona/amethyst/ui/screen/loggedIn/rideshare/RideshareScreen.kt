@@ -50,6 +50,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -70,7 +71,6 @@ import com.vitorpamplona.amethyst.R
 import com.vitorpamplona.amethyst.service.GraphHopperInitManager
 import com.vitorpamplona.amethyst.service.SatoshiFormatter
 import com.vitorpamplona.amethyst.ui.screen.loggedIn.AccountViewModel
-import com.vitorpamplona.amethyst.ui.screen.loggedIn.DisappearingScaffold
 import com.vitorpamplona.amethyst.ui.stringRes
 import com.vitorpamplona.quartz.nip014173Rideshare.DriverAvailabilityEvent
 
@@ -80,15 +80,17 @@ fun RideshareScreen(
     accountViewModel: AccountViewModel,
     onBack: () -> Unit,
 ) {
-    val account = accountViewModel.account
-
+    val context = LocalContext.current
     val rideshareViewModel: RideshareViewModel =
         viewModel(
-            factory = RideshareViewModel.Factory(account),
+            factory =
+                RideshareViewModel.Factory(
+                    account = accountViewModel.account,
+                    context = context,
+                ),
         )
 
     val state by rideshareViewModel.state.collectAsState()
-    val context = LocalContext.current
 
     // Permission launcher for storage permissions
     val requestPermissionLauncher =
@@ -107,7 +109,7 @@ fun RideshareScreen(
         }
     }
 
-    DisappearingScaffold(
+    Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(text = stringRes(R.string.rideshare)) },
@@ -207,9 +209,7 @@ fun RoutingStatusCard(status: GraphHopperInitManager.InitStatus) {
     val statusText =
         when (status.state) {
             GraphHopperInitManager.InitState.NOT_INITIALIZED -> "Routing engine not initialized"
-            GraphHopperInitManager.InitState.DOWNLOADING ->
-                "Downloading map data (${(status.progress * 100).toInt()}%)"
-            GraphHopperInitManager.InitState.PROCESSING -> "Processing map data"
+            GraphHopperInitManager.InitState.PROCESSING -> "Processing map data (${(status.progress * 100).toInt()}%)"
             GraphHopperInitManager.InitState.INITIALIZED -> "Routing engine ready"
             GraphHopperInitManager.InitState.ERROR ->
                 "Routing engine error: ${status.errorMessage ?: "Unknown error"}"
@@ -237,9 +237,7 @@ fun RoutingStatusCard(status: GraphHopperInitManager.InitStatus) {
                     .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (status.state == GraphHopperInitManager.InitState.DOWNLOADING ||
-                status.state == GraphHopperInitManager.InitState.PROCESSING
-            ) {
+            if (status.state == GraphHopperInitManager.InitState.PROCESSING) {
                 CircularProgressIndicator(
                     modifier =
                         Modifier
@@ -554,7 +552,7 @@ fun RideRequestCard(
             Spacer(modifier = Modifier.height(8.dp))
 
             fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -637,7 +635,7 @@ fun ActiveRideCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -688,7 +686,7 @@ fun RideCompletedCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             finalFare?.let {
-                Text("Final Fare: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Final Fare: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -808,7 +806,7 @@ fun WaitingForDriverCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -852,7 +850,7 @@ fun DriverAcceptedCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -904,7 +902,7 @@ fun DriverEnRouteCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -947,7 +945,7 @@ fun PaymentRequestCard(
             Spacer(modifier = Modifier.height(16.dp))
 
             finalFare?.let {
-                Text("Final Fare: ${SatoshiFormatter.formatSatoshisForDisplay(it)}")
+                Text("Final Fare: ${SatoshiFormatter.format(it.toLong())}")
             }
 
             Spacer(modifier = Modifier.height(16.dp))

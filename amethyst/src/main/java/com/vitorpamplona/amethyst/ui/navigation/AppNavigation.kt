@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.util.Consumer
 import androidx.navigation.NavBackStackEntry
+import androidx.navigation.NavController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.vitorpamplona.amethyst.R
@@ -88,6 +89,13 @@ import kotlinx.coroutines.launch
 import java.net.URI
 import java.net.URLDecoder
 
+/**
+ * Extension function for NavController to pop the back stack
+ */
+fun NavController.popBackStack() {
+    this.navigateUp()
+}
+
 fun NavBackStackEntry.id(): String? = arguments?.getString("id")
 
 fun NavBackStackEntry.message(): String? =
@@ -126,7 +134,7 @@ fun AppNavigation(
             composable(Route.Discover.route) { DiscoverScreen(accountViewModel, nav) }
             composable(Route.Notification.route) { NotificationScreen(sharedPreferencesViewModel, accountViewModel, nav) }
             composable(Route.EditProfile.route) { NewUserMetadataScreen(nav, accountViewModel) }
-            composable(Route.Rideshare.route) { RideshareScreen(accountViewModel, onBack = { nav.popBackStack() }) }
+            composable(Route.Rideshare.route) { RideshareScreen(accountViewModel, onBack = { nav.popBack() }) }
 
             composable(Route.Search.route) { SearchScreen(accountViewModel, nav) }
 

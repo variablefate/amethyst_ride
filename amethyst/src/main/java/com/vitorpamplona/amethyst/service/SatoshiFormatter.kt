@@ -22,86 +22,71 @@ package com.vitorpamplona.amethyst.service
 
 import java.text.NumberFormat
 import java.util.Locale
+import kotlin.math.roundToLong
 
 /**
- * Utility class for handling satoshi formatting and conversions.
- * For the Nostr rideshare NIP-014173 implementation, all fare estimates and payments
- * are handled in satoshis for maximum precision and privacy.
+ * Utility class for formatting and converting between satoshis and fiat currencies.
  */
 object SatoshiFormatter {
-    private const val SATS_PER_USD = 1000L // 1000 satoshis = 1 USD (simplified conversion)
-    private const val SATS_PER_BTC = 100_000_000L // 100 million satoshis = 1 BTC
+    // Constants
+    private const val SATS_PER_BTC = 100_000_000L
+
+    // Default exchange rate (USD per BTC)
+    // In a real app, this would be fetched from an API
+    private var btcToUsdRate = 60000.0
 
     /**
-     * Format a satoshi amount for display with comma separators
+     * Formats a satoshi amount as a string with the appropriate unit.
+     *
      * @param satoshis The amount in satoshis
-     * @return Formatted string with commas (e.g., "5,000 sats")
+     * @return Formatted string (e.g., "1,234 sats")
      */
-    fun formatSatoshisForDisplay(satoshis: Long): String {
+    fun format(satoshis: Long): String {
         val formatter = NumberFormat.getNumberInstance(Locale.US)
         return "${formatter.format(satoshis)} sats"
     }
 
     /**
-     * Format a satoshi amount for display with comma separators
-     * @param satoshisStr The amount in satoshis as string
-     * @return Formatted string with commas (e.g., "5,000 sats")
+     * Converts a USD amount to satoshis using the current exchange rate.
+     *
+     * @param usdAmount The amount in USD
+     * @return The equivalent amount in satoshis
      */
-    fun formatSatoshisForDisplay(satoshisStr: String): String =
-        try {
-            val satoshis = satoshisStr.toLong()
-            formatSatoshisForDisplay(satoshis)
-        } catch (e: NumberFormatException) {
-            "$satoshisStr sats"
-        }
+    fun usdToSatoshis(usdAmount: Double): Long {
+        val btcAmount = usdAmount / btcToUsdRate
+        return (btcAmount * SATS_PER_BTC).roundToLong()
+    }
 
     /**
-     * Convert a BTC value to satoshis
-     * @param btc Amount in BTC
-     * @return Amount in satoshis
+     * Converts a satoshi amount to USD using the current exchange rate.
+     *
+     * @param satoshis The amount in satoshis
+     * @return The equivalent amount in USD
      */
-    fun btcToSatoshis(btc: Double): Long = (btc * SATS_PER_BTC).toLong()
+    fun satoshisToUsd(satoshis: Long): Double {
+        val btcAmount = satoshis.toDouble() / SATS_PER_BTC
+        return btcAmount * btcToUsdRate
+    }
 
     /**
-     * Convert a satoshi value to BTC
-     * @param satoshis Amount in satoshis
-     * @return Amount in BTC
+     * Formats a satoshi amount as USD.
+     *
+     * @param satoshis The amount in satoshis
+     * @return Formatted USD string (e.g., "$12.34")
      */
-    fun satoshisToBtc(satoshis: Long): Double = satoshis.toDouble() / SATS_PER_BTC
+    fun formatAsUsd(satoshis: Long): String {
+        val usdAmount = satoshisToUsd(satoshis)
+        val formatter = NumberFormat.getCurrencyInstance(Locale.US)
+        return formatter.format(usdAmount)
+    }
 
     /**
-     * Parse a string that might contain a BTC amount or satoshi amount
-     * @param str The string to parse
-     * @return Amount in satoshis
+     * Updates the BTC to USD exchange rate.
+     * In a real app, this would be called periodically with data from an exchange rate API.
+     *
+     * @param newRate The new exchange rate (USD per BTC)
      */
-    fun parseToSatoshis(str: String): Long =
-        try {
-            // Check if the string is in BTC format (contains decimal point)
-            if (str.contains(".")) {
-                // Remove the "BTC" suffix if present and trim
-                val btcValue = str.replace("BTC", "").trim().toDouble()
-                btcToSatoshis(btcValue)
-            } else {
-                // Just parse as satoshis
-                val cleanStr = str.replace("sats", "").replace("sat", "").trim()
-                cleanStr.toLong()
-            }
-        } catch (e: Exception) {
-            // Default value if parsing fails
-            1000L
-        }
-
-    /**
-     * Convert USD to satoshis using the 1000 sats = $1 conversion
-     * @param usd Amount in USD
-     * @return Amount in satoshis
-     */
-    fun usdToSatoshis(usd: Double): Long = (usd * SATS_PER_USD).toLong()
-
-    /**
-     * Convert satoshis to USD using the 1000 sats = $1 conversion
-     * @param satoshis Amount in satoshis
-     * @return Amount in USD
-     */
-    fun satoshisToUsd(satoshis: Long): Double = satoshis.toDouble() / SATS_PER_USD
+    fun updateExchangeRate(newRate: Double) {
+        btcToUsdRate = newRate
+    }
 } 

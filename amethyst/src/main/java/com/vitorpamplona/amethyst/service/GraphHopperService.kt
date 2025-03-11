@@ -22,22 +22,21 @@ package com.vitorpamplona.amethyst.service
 
 import android.content.Context
 import android.util.Log
-import com.graphhopper.GHRequest
-import com.graphhopper.GHResponse
-import com.graphhopper.GraphHopper
-import com.graphhopper.config.CHProfile
-import com.graphhopper.config.Profile
-import com.graphhopper.util.Parameters
 import com.vitorpamplona.quartz.nip014173Rideshare.DriverAvailabilityEvent
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import kotlin.math.atan2
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
- * Service for calculating routes, estimated arrival times, and fare estimates using GraphHopper locally.
- * This implementation uses the GraphHopper library to calculate routes on the device without
- * requiring internet connectivity or API keys.
+ * Service for calculating routes, estimated arrival times, and fare estimates.
+ * This implementation uses a simple straight-line distance calculation with
+ * estimated driving speeds, no map data required.
  */
 class GraphHopperService(
     private val context: Context,
@@ -45,146 +44,82 @@ class GraphHopperService(
     companion object {
         private const val TAG = "GraphHopperService"
 
-        // Directory where GraphHopper will store its data
-        private const val GH_DIR = "graphhopper"
+        // Average driving speeds in different environments (in km/h)
+        private const val URBAN_SPEED_KMH = 30.0 // 30 km/h in urban areas
+        private const val HIGHWAY_SPEED_KMH = 90.0 // 90 km/h on highways
 
-        // GraphHopper profiles for different vehicles
-        private val CAR_PROFILE = "car"
-        private val BIKE_PROFILE = "bike"
-        private val FOOT_PROFILE = "foot"
+        // Earth's radius in kilometers
+        private const val EARTH_RADIUS_KM = 6371.0
     }
 
-    private var hopper: GraphHopper? = null
-    private var isInitialized = false
+    private var isInitialized = true // Always initialized
 
     /**
-     * Initializes the GraphHopper engine with the given OSM file.
-     * This method should be called before any routing requests.
+     * Initialize the routing service.
+     * This simplified implementation doesn't require real initialization.
      *
-     * @param osmFile The OpenStreetMap data file
-     * @return True if initialization was successful, false otherwise
+     * @param osmFile Ignored in this implementation
+     * @return Always returns true
      */
-    suspend fun initialize(osmFile: File): Boolean =
-        withContext(Dispatchers.IO) {
-            try {
-                // Create GraphHopper instance
-                val gh =
-                    GraphHopper().apply {
-                        // Set the location where GraphHopper will store its data
-                        val ghDir = File(context.getExternalFilesDir(null), GH_DIR)
-                        ghDir.mkdirs()
-                        setGraphHopperLocation(ghDir.absolutePath)
+    suspend fun initialize(osmFile: File): Boolean = true
 
-                        // Set the OSM file
-                        setOSMFile(osmFile.absolutePath)
-
-                        // Configure routing profiles
-                        setProfiles(
-                            Profile(CAR_PROFILE).setVehicle(CAR_PROFILE).setTurnCosts(true),
-                            Profile(BIKE_PROFILE).setVehicle(BIKE_PROFILE).setTurnCosts(false),
-                            Profile(FOOT_PROFILE).setVehicle(FOOT_PROFILE).setTurnCosts(false),
-                        )
-
-                        // Enable contraction hierarchies for faster routing
-                        setCHProfiles(
-                            CHProfile(CAR_PROFILE),
-                            CHProfile(BIKE_PROFILE),
-                            CHProfile(FOOT_PROFILE),
-                        )
-                    }
-
-                // Import and process the data
-                gh.importOrLoad()
-
-                hopper = gh
-                isInitialized = true
-                Log.i(TAG, "GraphHopper initialized successfully")
-                true
-            } catch (e: Exception) {
-                Log.e(TAG, "Error initializing GraphHopper", e)
-                isInitialized = false
-                false
-            }
+    /**
+     * Gets a dummy OSM file, just to maintain API compatibility.
+     *
+     * @param areaName The name of the area (ignored)
+     * @return A dummy file
+     */
+    fun getOsmFile(areaName: String): File {
+        val dummyFile = File(context.getExternalFilesDir(null), "dummy.osm")
+        if (!dummyFile.exists()) {
+            dummyFile.createNewFile()
         }
-
-    /**
-     * Downloads an OSM file for the given area if it doesn't already exist.
-     * This is a simplified version that assumes the file is provided by the application
-     * or downloaded separately.
-     *
-     * @param areaName The name of the area (used for the filename)
-     * @return The OSM file, or null if the file doesn't exist
-     */
-    fun getOsmFile(areaName: String): File? {
-        val osmFile = File(context.getExternalFilesDir(null), "$areaName.osm.pbf")
-        return if (osmFile.exists()) osmFile else null
+        return dummyFile
     }
 
     /**
-     * Calculates the route information between two points.
+     * Calculates a route between two points using straight-line distance.
      *
      * @param origin The starting location (lat/lon)
      * @param destination The ending location (lat/lon)
      * @return RouteInfo object containing distance, duration and points of the route
-     * @throws IllegalStateException if GraphHopper has not been initialized
-     * @throws IOException if routing fails
      */
     suspend fun calculateRoute(
         origin: DriverAvailabilityEvent.Location,
         destination: DriverAvailabilityEvent.Location,
-        profile: String = CAR_PROFILE,
+        profile: String = "car", // Ignored in this implementation
     ): RouteInfo =
         withContext(Dispatchers.IO) {
-            if (!isInitialized || hopper == null) {
-                throw IllegalStateException("GraphHopper is not initialized. Call initialize() first.")
-            }
-
             try {
-                // Create a routing request
-                val request =
-                    GHRequest(
+                // Calculate the straight-line distance in meters
+                val distanceKm =
+                    calculateHaversineDistance(
                         origin.lat,
                         origin.lon,
                         destination.lat,
                         destination.lon,
-                    ).apply {
-                        // Set the vehicle profile
-                        setProfile(profile)
-                        // Enable path details like road type, surface, etc.
-                        setPathDetails(
-                            listOf(
-                                Parameters.Details.AVERAGE_SPEED,
-                                Parameters.Details.STREET_NAME,
-                                Parameters.Details.ROAD_CLASS,
-                                Parameters.Details.ROAD_ENVIRONMENT,
-                            ),
-                        )
-                        // Request distances in meters and time in seconds
-                        setLocale("en")
-                    }
+                    )
+                val distanceMeters = distanceKm * 1000
 
-                // Execute routing request
-                val response: GHResponse = hopper!!.route(request)
+                // Estimate travel time based on distance and estimated speed
+                // Use urban speed for shorter distances, highway speed for longer distances
+                val speedKmh = if (distanceKm < 10) URBAN_SPEED_KMH else HIGHWAY_SPEED_KMH
+                val durationHours = distanceKm / speedKmh
+                val durationSeconds = durationHours * 3600
 
-                // Check for errors
-                if (response.hasErrors()) {
-                    val errorMessage = response.errors.joinToString("\n") { it.message ?: "Unknown error" }
-                    throw IOException("Routing error: $errorMessage")
-                }
+                // Generate a simple route with just start and end points
+                val points = mutableListOf(origin, destination)
 
-                // Get the best path
-                val path = response.best
-
-                // Extract points from the path
-                val points = mutableListOf<DriverAvailabilityEvent.Location>()
-                for (i in 0 until path.points.size()) {
-                    val point = path.points.get(i)
-                    points.add(DriverAvailabilityEvent.Location(point.lat, point.lon))
+                // If the distance is over 5km, add a midpoint
+                if (distanceKm > 5) {
+                    val midLat = (origin.lat + destination.lat) / 2
+                    val midLon = (origin.lon + destination.lon) / 2
+                    points.add(1, DriverAvailabilityEvent.Location(midLat, midLon))
                 }
 
                 RouteInfo(
-                    distanceMeters = path.distance,
-                    durationSeconds = path.time / 1000.0, // Convert from milliseconds to seconds
+                    distanceMeters = distanceMeters,
+                    durationSeconds = durationSeconds,
                     points = points,
                 )
             } catch (e: Exception) {
@@ -194,8 +129,41 @@ class GraphHopperService(
         }
 
     /**
+     * Calculates the great-circle distance between two coordinates using the Haversine formula.
+     *
+     * @param lat1 Latitude of the first point
+     * @param lon1 Longitude of the first point
+     * @param lat2 Latitude of the second point
+     * @param lon2 Longitude of the second point
+     * @return Distance in kilometers
+     */
+    private fun calculateHaversineDistance(
+        lat1: Double,
+        lon1: Double,
+        lat2: Double,
+        lon2: Double,
+    ): Double {
+        // Convert latitude and longitude from degrees to radians
+        val lat1Rad = Math.toRadians(lat1)
+        val lon1Rad = Math.toRadians(lon1)
+        val lat2Rad = Math.toRadians(lat2)
+        val lon2Rad = Math.toRadians(lon2)
+
+        // Calculate differences
+        val dLat = lat2Rad - lat1Rad
+        val dLon = lon2Rad - lon1Rad
+
+        // Haversine formula
+        val a = sin(dLat / 2).pow(2) + cos(lat1Rad) * cos(lat2Rad) * sin(dLon / 2).pow(2)
+        val c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+        // Distance in kilometers
+        return EARTH_RADIUS_KM * c
+    }
+
+    /**
      * Calculates a fare estimate based on distance and duration.
-     * This is a simple implementation - a real app would have more sophisticated pricing.
+     * This is a simple implementation with a base fare plus per-km and per-minute rates.
      *
      * @param distanceMeters Distance in meters
      * @param durationSeconds Duration in seconds
@@ -227,13 +195,11 @@ class GraphHopperService(
     }
 
     /**
-     * Cleans up resources used by GraphHopper.
-     * This should be called when the service is no longer needed.
+     * Cleans up resources.
+     * This simplified implementation doesn't need cleanup.
      */
     fun close() {
-        hopper?.close()
-        hopper = null
-        isInitialized = false
+        // No resources to clean up
     }
 
     /**

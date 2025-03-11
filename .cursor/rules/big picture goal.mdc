@@ -1,0 +1,70 @@
+---
+description: scope and big picture goals of the rideshare implementation
+globs: 
+alwaysApply: false
+---
+##scope and goal of the rideshare implementation being added to Amethyst
+
+
+## Core Protocol: NIP-014173
+
+The implementation is built around **NIP-014173**, a Nostr Implementation Possibility that defines a decentralized ridesharing protocol with the following characteristics:
+
+1. **Privacy-Focused**: Uses two-stage location sharing where only approximate locations are shared until mutual consent is established
+2. **Decentralized Communication**: Leverages Nostr for peer-to-peer communication between riders and drivers
+3. **Bitcoin Lightning Payments**: Integrates native Bitcoin Lightning Network for payments
+4. **No Central Authority**: Eliminates reliance on centralized platforms, putting users in direct control
+
+## Key Components Implemented
+
+1. **Five Custom Event Types**:
+   - DriverAvailabilityEvent (Kind 3000): Broadcasts driver location and availability
+   - RideOfferEvent (Kind 3001): Riders respond to available drivers with fare estimates
+   - RideAcceptanceEvent (Kind 3002): Drivers accept ride offers
+   - RideConfirmationEvent (Kind 3003): Riders confirm rides and share precise pickup location
+   - DriverStatusEvent (Kind 3004): Drivers update status and request payment upon completion
+
+2. **UI Implementation**:
+   - Dedicated RideshareScreen with both driver and rider modes
+   - Location selection and map integration
+   - Ride state management through the RideStage enum
+   - Driver availability listing and selection
+
+3. **Minimized External API Usage**:
+   - Custom GraphHopperService implementation that eliminates reliance on external routing APIs
+   - Simplified fare calculation based on distance and time
+
+4. **Privacy-Preserving Design**:
+   - Two-tier location sharing (approximate first, precise only after mutual agreement)
+   - NIP-44 encryption for sensitive data exchange
+   - Decentralized communications over Nostr relays
+
+5. **Local Processing**:
+   - GraphHopperInitManager that simulates map data initialization but actually uses local calculations
+   - No dependency on Google Maps or other centralized mapping services
+   - Straight-line distance and time estimation for routes
+
+## Technical Integration
+
+The implementation is fully integrated with Amethyst's existing architecture:
+- Built on Kotlin and Jetpack Compose
+- Follows MVVM architecture pattern
+- Uses Kotlin Flow for state management
+- Leverages Amethyst's existing Nostr communication infrastructure
+
+## Current State & Limitations
+
+1. **Partially Implemented**: The basic framework and UI are in place, but some functionality appears to be simulated
+2. **Limited Routing Capability**: Uses simplified distance calculations rather than true routing
+3. **Prototype Implementation**: Some features have placeholder implementations (e.g., driver listings)
+
+## Future Potential
+
+1. **Enhanced Mapping**: Potential to integrate true offline routing using full GraphHopper implementation
+2. **Reputation System**: Framework exists for implementing a driver/rider rating system
+3. **Payment Integration**: Direct integration with Lightning wallets via NWC (Nostr Wallet Connect)
+4. **Broader NIP Adoption**: Could become a reference implementation for other Nostr clients
+
+## Conclusion
+
+The rideshare implementation represents a significant step toward truly decentralized peer-to-peer transportation services. It demonstrates how Nostr can be extended beyond social media to support direct economic activity while preserving user privacy and eliminating reliance on centralized platforms. By using local calculations and minimizing external API dependencies, the implementation aligns with Nostr's ethos of user sovereignty and resilience.

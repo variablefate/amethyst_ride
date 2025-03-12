@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -59,6 +61,7 @@ import com.vitorpamplona.amethyst.ui.theme.FeedPadding
 import com.vitorpamplona.amethyst.ui.theme.MinHorzSpacer
 import com.vitorpamplona.amethyst.ui.theme.RowColSpacing
 import com.vitorpamplona.amethyst.ui.theme.StdHorzSpacer
+import com.vitorpamplona.amethyst.ui.theme.StdVertSpacer
 import com.vitorpamplona.amethyst.ui.theme.grayText
 import com.vitorpamplona.ammolite.relays.Constants
 import com.vitorpamplona.quartz.nip01Core.relay.RelayStat
@@ -99,6 +102,9 @@ fun MappedAllRelayListView(
     val localViewModel: LocalRelayListViewModel = viewModel()
     val localFeedState by localViewModel.relays.collectAsStateWithLifecycle()
 
+    val rideshareViewModel: RideshareRelayListViewModel = viewModel()
+    val rideshareFeedState by rideshareViewModel.relays.collectAsStateWithLifecycle()
+
     LaunchedEffect(Unit) {
         kind3ViewModel.load(accountViewModel.account)
         dmViewModel.load(accountViewModel.account)
@@ -106,6 +112,7 @@ fun MappedAllRelayListView(
         searchViewModel.load(accountViewModel.account)
         localViewModel.load(accountViewModel.account)
         privateOutboxViewModel.load(accountViewModel.account)
+        rideshareViewModel.load(accountViewModel.account)
     }
 
     Scaffold(
@@ -136,6 +143,7 @@ fun MappedAllRelayListView(
                                 searchViewModel.create()
                                 localViewModel.create()
                                 privateOutboxViewModel.create()
+                                rideshareViewModel.create()
                                 newNav.popBack()
                             },
                             true,
@@ -153,6 +161,7 @@ fun MappedAllRelayListView(
                                 searchViewModel.clear()
                                 localViewModel.clear()
                                 privateOutboxViewModel.clear()
+                                rideshareViewModel.clear()
                                 newNav.popBack()
                             },
                         )
@@ -226,6 +235,17 @@ fun MappedAllRelayListView(
             renderSearchItems(searchFeedState, searchViewModel, accountViewModel, newNav)
 
             item {
+                SettingsCategoryWithButton(
+                    stringRes(R.string.rideshare_section),
+                    stringRes(R.string.rideshare_section_explainer),
+                    action = {
+                        ResetRideshareRelays(rideshareViewModel)
+                    },
+                )
+            }
+            renderRideshareItems(rideshareFeedState, rideshareViewModel, accountViewModel, newNav, relayToAdd)
+
+            item {
                 SettingsCategory(
                     stringRes(R.string.local_section),
                     stringRes(R.string.local_section_explainer),
@@ -297,6 +317,19 @@ fun ResetDMRelays(postViewModel: DMRelayListViewModel) {
 }
 
 @Composable
+fun ResetRideshareRelays(postViewModel: RideshareRelayListViewModel) {
+    OutlinedButton(
+        onClick = {
+            postViewModel.deleteAll()
+            postViewModel.addDefaultRelays()
+            postViewModel.loadRelayDocuments()
+        },
+    ) {
+        Text(stringRes(R.string.default_relays))
+    }
+}
+
+@Composable
 fun SettingsCategory(
     title: String,
     description: String? = null,
@@ -342,5 +375,27 @@ fun SettingsCategoryWithButton(
         }
 
         action()
+    }
+}
+
+fun LazyListScope.renderRideshareItems(
+    feedState: List<BasicRelaySetupInfo>,
+    postViewModel: RideshareRelayListViewModel,
+    accountViewModel: AccountViewModel,
+    nav: INav,
+    relayToAdd: String,
+) {
+    itemsIndexed(feedState, key = { _, item -> "rideshare" + item.url }) { index, item ->
+        BasicRelaySetupInfoDialog(
+            item,
+            onDelete = { postViewModel.deleteRelay(it) },
+            accountViewModel = accountViewModel,
+            nav = nav,
+        )
+    }
+
+    item {
+        Spacer(modifier = StdVertSpacer)
+        RelayUrlEditField { postViewModel.addRelay(it) }
     }
 }

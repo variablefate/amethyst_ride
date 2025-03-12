@@ -27,9 +27,14 @@ object Constants {
     val activeTypesChats = setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS)
     val activeTypesGlobalChats = setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS, FeedType.GLOBAL)
     val activeTypesSearch = setOf(FeedType.SEARCH)
+    val activeTypesRideshare = setOf(FeedType.RIDESHARE) // Rideshare events use dedicated RIDESHARE feed type
 
     val defaultRelays =
         arrayOf(
+            // Local rideshare relay for testing
+            RelaySetupInfo(RelayUrlFormatter.normalize("ws://127.0.0.1:4869"), read = true, write = true, feedTypes = activeTypesRideshare),
+            // Example relay for rideshare - add more as needed
+            RelaySetupInfo(RelayUrlFormatter.normalize("wss://nostr.mutinywallet.com"), read = true, write = true, feedTypes = activeTypesRideshare),
             // Free relays for only DMs, Chats and Follows due to the amount of spam
             RelaySetupInfo(RelayUrlFormatter.normalize("wss://nostr.bitcoiner.social"), read = true, write = true, feedTypes = activeTypesChats),
             RelaySetupInfo(RelayUrlFormatter.normalize("wss://relay.nostr.bg"), read = true, write = true, feedTypes = activeTypesChats),

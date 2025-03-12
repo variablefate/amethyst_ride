@@ -28,17 +28,23 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.vitorpamplona.amethyst.Amethyst
 import com.vitorpamplona.amethyst.model.Account
+import com.vitorpamplona.amethyst.model.LocalCache
 import com.vitorpamplona.amethyst.model.Route
 import com.vitorpamplona.amethyst.service.GeocoderService
 import com.vitorpamplona.amethyst.service.GraphHopperInitManager
 import com.vitorpamplona.amethyst.service.GraphHopperService
 import com.vitorpamplona.amethyst.service.LocationState
+import com.vitorpamplona.quartz.nip014173Rideshare.DriverAvailabilityEvent
 import com.vitorpamplona.quartz.nip014173Rideshare.Location
 import com.vitorpamplona.quartz.nip014173Rideshare.RideRequestEvent
+import com.vitorpamplona.quartz.nip01Core.core.Event
+import com.vitorpamplona.quartz.nip09Deletions.DeletionEvent
+import com.vitorpamplona.quartz.utils.TimeUtils
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.util.ArrayList
 import java.util.Date
 
 // Status enum for RideRequestEvent
@@ -186,11 +192,22 @@ class RideshareViewModel(
         onRouteCalculated: (Route?) -> Unit,
     ) {
         try {
+            Log.d("RideshareViewModel", "Previewing route from $pickupAddress to $destinationAddress")
+
+            // Update state to show loading
+            _state.value =
+                _state.value.copy(
+                    isLoading = true,
+                    error = null,
+                )
+
             // Use current location if pickupAddress is null
             val actualPickupAddress =
                 pickupAddress ?: _state.value.currentLocation?.let {
                     "${it.latitude},${it.longitude}"
-                } ?: return
+                } ?: "37.7749,-122.4194" // San Francisco as default if no location
+
+            Log.d("RideshareViewModel", "Using pickup address: $actualPickupAddress")
 
             val route = calculateRoute(actualPickupAddress, destinationAddress)
             if (route != null) {
@@ -198,17 +215,33 @@ class RideshareViewModel(
                 val fareEstimate = calculateFareEstimate(route)
                 route.fareEstimateSats = fareEstimate
 
+                Log.d("RideshareViewModel", "Route calculated: ${route.distanceInKm} km, ${route.durationInMs} ms, $fareEstimate sats")
+
                 // Update state with the route
                 _state.value =
                     _state.value.copy(
                         previewRoute = route,
                         pickupAddress = actualPickupAddress,
                         destinationAddress = destinationAddress,
+                        isLoading = false,
                     )
+                onRouteCalculated(route)
+            } else {
+                Log.e("RideshareViewModel", "Failed to calculate route")
+                _state.value =
+                    _state.value.copy(
+                        isLoading = false,
+                        error = "Could not calculate route. Please try different addresses.",
+                    )
+                onRouteCalculated(null)
             }
-            onRouteCalculated(route)
         } catch (e: Exception) {
             Log.e("RideshareViewModel", "Error previewing route", e)
+            _state.value =
+                _state.value.copy(
+                    isLoading = false,
+                    error = "Error: ${e.message ?: "Unknown error"}",
+                )
             onRouteCalculated(null)
         }
     }
@@ -227,13 +260,52 @@ class RideshareViewModel(
         destinationAddress: String,
     ): Route? {
         try {
+            Log.d("RideshareViewModel", "Calculating route from $pickupAddress to $destinationAddress")
+
             // Geocode the pickup address
-            val (pickupLat, pickupLon) = geocoderService.geocodeAddress(pickupAddress) ?: return null
-            val pickupLocation = Location(latitude = pickupLat, longitude = pickupLon, approximateRadius = 500)
+            val pickupCoords = geocoderService.geocodeAddress(pickupAddress)
+            if (pickupCoords == null) {
+                Log.e("RideshareViewModel", "Could not geocode pickup address: $pickupAddress")
+
+                // Try parsing coordinates directly if it's in "lat,lon" format
+                val pickupParts = pickupAddress.split(",").map { it.trim() }
+                if (pickupParts.size == 2) {
+                    try {
+                        val lat = pickupParts[0].toDouble()
+                        val lon = pickupParts[1].toDouble()
+                        Log.d("RideshareViewModel", "Parsed coordinates from pickup address: $lat, $lon")
+                        val pickupLocation = Location(latitude = lat, longitude = lon, approximateRadius = 500)
+
+                        // Geocode the destination address
+                        val destCoords = geocoderService.geocodeAddress(destinationAddress)
+                        if (destCoords == null) {
+                            Log.e("RideshareViewModel", "Could not geocode destination address: $destinationAddress")
+                            return null
+                        }
+
+                        val destinationLocation = Location(latitude = destCoords.first, longitude = destCoords.second, approximateRadius = 500)
+
+                        // Use straight line route as fallback
+                        Log.d("RideshareViewModel", "Using straight line route as fallback")
+                        return Route.createStraightLineRoute(pickupLocation, destinationLocation)
+                    } catch (e: Exception) {
+                        Log.e("RideshareViewModel", "Error parsing coordinates", e)
+                        return null
+                    }
+                } else {
+                    return null
+                }
+            }
+
+            val pickupLocation = Location(latitude = pickupCoords.first, longitude = pickupCoords.second, approximateRadius = 500)
 
             // Geocode the destination address
-            val (destLat, destLon) = geocoderService.geocodeAddress(destinationAddress) ?: return null
-            val destinationLocation = Location(latitude = destLat, longitude = destLon, approximateRadius = 500)
+            val destCoords = geocoderService.geocodeAddress(destinationAddress)
+            if (destCoords == null) {
+                Log.e("RideshareViewModel", "Could not geocode destination address: $destinationAddress")
+                return null
+            }
+            val destinationLocation = Location(latitude = destCoords.first, longitude = destCoords.second, approximateRadius = 500)
 
             // Calculate route using GraphHopper
             val routeInfo =
@@ -245,6 +317,7 @@ class RideshareViewModel(
                 )
 
             return if (routeInfo != null) {
+                Log.d("RideshareViewModel", "GraphHopper route calculated successfully")
                 Route.fromGraphHopperResponse(
                     startLocation = pickupLocation,
                     endLocation = destinationLocation,
@@ -252,6 +325,7 @@ class RideshareViewModel(
                 )
             } else {
                 // Fallback to straight line route
+                Log.d("RideshareViewModel", "GraphHopper routing failed, using straight line route as fallback")
                 Route.createStraightLineRoute(pickupLocation, destinationLocation)
             }
         } catch (e: Exception) {
@@ -260,34 +334,122 @@ class RideshareViewModel(
         }
     }
 
+    // Toggle driver mode
+    fun toggleDriverMode(isDriverMode: Boolean) {
+        Log.d("RideshareViewModel", "Toggling driver mode to: $isDriverMode")
+
+        viewModelScope.launch {
+            try {
+                // Update state to reflect the new mode
+                _state.value =
+                    _state.value.copy(
+                        isDriverMode = isDriverMode,
+                        // When switching to rider mode, ensure driver is unavailable
+                        isDriverAvailable = if (!isDriverMode) false else _state.value.isDriverAvailable,
+                    )
+
+                // If changing to driver mode, check if we have the current location
+                if (isDriverMode) {
+                    // Check if we have location access
+                    val locationAvailable = Amethyst.instance.locationManager.geohashStateFlow.value
+
+                    if (locationAvailable !is LocationState.LocationResult.Success) {
+                        Log.d("RideshareViewModel", "No location available for driver mode")
+
+                        // Get a default location
+                        val defaultLocation =
+                            Location(
+                                latitude = 37.7749, // San Francisco as default
+                                longitude = -122.4194,
+                                approximateRadius = 500,
+                            )
+
+                        // Update the current location for driver mode
+                        _state.value =
+                            _state.value.copy(
+                                currentLocation = defaultLocation,
+                            )
+                    }
+                }
+
+                Log.d("RideshareViewModel", "Driver mode toggled successfully")
+            } catch (e: Exception) {
+                Log.e("RideshareViewModel", "Error toggling driver mode", e)
+            }
+        }
+    }
+
+    // Set driver mode - alias for toggleDriverMode for backwards compatibility
+    fun setDriverMode(isDriverMode: Boolean) {
+        toggleDriverMode(isDriverMode)
+    }
+
     // Make the driver available
     fun broadcastDriverAvailability(isAvailable: Boolean) {
         viewModelScope.launch {
             try {
-                val currentLocation = _state.value.currentLocation ?: return@launch
+                Log.d("RideshareViewModel", "Setting driver availability to: $isAvailable")
+
+                // Use current location or default if not available
+                val currentLocation =
+                    _state.value.currentLocation ?: Location(
+                        latitude = 37.7749, // San Francisco as default
+                        longitude = -122.4194,
+                        approximateRadius = 500,
+                    )
 
                 // Update state to indicate driver is available/unavailable
                 _state.value =
                     _state.value.copy(
                         isDriverAvailable = isAvailable,
                         driverLocation = if (isAvailable) currentLocation else null,
+                        // Set ride stage for driver
+                        currentRide =
+                            if (isAvailable) {
+                                RideState(rideStage = RideStage.DRIVER_AVAILABLE)
+                            } else {
+                                null
+                            },
                     )
 
-                // TODO: Implement the actual event broadcasting when backend is ready
+                Log.d("RideshareViewModel", "Driver availability set to: $isAvailable")
+
+                // Implement the actual event broadcasting
+                if (isAvailable) {
+                    // Create and broadcast a DriverAvailabilityEvent (Kind 3000)
+                    val signer = account.signer
+                    if (signer != null) {
+                        Log.d("RideshareViewModel", "Broadcasting driver availability with location: ${currentLocation.latitude}, ${currentLocation.longitude}")
+
+                        // Create the event using the DriverAvailabilityEvent class
+                        // This will publish a Kind 3000 event as specified in NIP-014173
+                        DriverAvailabilityEvent.create(
+                            approxLocation = currentLocation,
+                            signer = signer,
+                            createdAt = TimeUtils.now(),
+                            onReady = { event ->
+                                Log.d("RideshareViewModel", "Driver availability event created, broadcasting to relays")
+                                Amethyst.instance.client.send(event)
+                                LocalCache.justConsume(event, null)
+
+                                // Set last refresh time
+                                _state.value =
+                                    _state.value.copy(
+                                        lastRefreshTime = Date(),
+                                    )
+                            },
+                        )
+                    } else {
+                        Log.e("RideshareViewModel", "Failed to broadcast driver availability: No signer available")
+                    }
+                } else {
+                    // If driver is going offline, delete the last driver availability event
+                    deleteDriverAvailabilityEvent()
+                }
             } catch (e: Exception) {
                 Log.e("RideshareViewModel", "Error updating driver availability", e)
             }
         }
-    }
-
-    // Make the driver available (alias for broadcastDriverAvailability)
-    fun makeDriverAvailable() {
-        broadcastDriverAvailability(true)
-    }
-
-    // Make the driver unavailable (alias for broadcastDriverAvailability)
-    fun makeDriverUnavailable() {
-        broadcastDriverAvailability(false)
     }
 
     // Reset the state
@@ -299,17 +461,104 @@ class RideshareViewModel(
             )
     }
 
-    // Toggle driver mode
-    fun toggleDriverMode(isDriverMode: Boolean) {
-        _state.value =
-            _state.value.copy(
-                isDriverMode = isDriverMode,
-            )
+    // New method to delete driver availability events when going offline
+    private fun deleteDriverAvailabilityEvent() {
+        viewModelScope.launch {
+            try {
+                Log.d("RideshareViewModel", "Deleting previous driver availability events")
+
+                // Find the driver availability events from this user
+                val myDriverAvailabilityEvents = ArrayList<Event>()
+
+                // Since we don't have a direct way to query by kind and author in LocalCache,
+                // we need to go through the notes to find our driver availability events
+                val userPubkey = account.userProfile().pubkeyHex
+
+                LocalCache.notes.forEach { _, note ->
+                    val event = note.event
+                    if (event is DriverAvailabilityEvent && event.pubKey == userPubkey) {
+                        myDriverAvailabilityEvents.add(event)
+                    }
+                }
+
+                if (myDriverAvailabilityEvents.isNotEmpty()) {
+                    Log.d("RideshareViewModel", "Found ${myDriverAvailabilityEvents.size} driver availability events to delete")
+
+                    // Create deletion event
+                    account.signer?.sign(
+                        DeletionEvent.build(myDriverAvailabilityEvents),
+                    ) { deletionEvent ->
+                        Amethyst.instance.client.send(deletionEvent)
+                        LocalCache.justConsume(deletionEvent, null)
+                        Log.d("RideshareViewModel", "Driver availability deletion event sent")
+                    }
+                } else {
+                    Log.d("RideshareViewModel", "No driver availability events found to delete")
+                }
+            } catch (e: Exception) {
+                Log.e("RideshareViewModel", "Error deleting driver availability events", e)
+            }
+        }
     }
 
-    // Set driver mode - alias for toggleDriverMode for backwards compatibility
-    fun setDriverMode(isDriverMode: Boolean) {
-        toggleDriverMode(isDriverMode)
+    // New method to cancel a ride and delete associated events
+    fun cancelRide(rideRequest: RideRequestEvent?) {
+        viewModelScope.launch {
+            try {
+                if (rideRequest == null) {
+                    Log.d("RideshareViewModel", "No ride request to cancel")
+                    return@launch
+                }
+
+                Log.d("RideshareViewModel", "Cancelling ride and deleting associated events")
+
+                // Find all events associated with this ride
+                val rideId = rideRequest.id
+                val eventsToDelete = ArrayList<Event>()
+
+                // Add the ride request itself if it's ours
+                val userPubkey = account.userProfile().pubkeyHex
+                if (rideRequest.pubKey == userPubkey) {
+                    eventsToDelete.add(rideRequest)
+                }
+
+                // We need to search for events related to this ride request
+                // This involves checking each note in the cache
+                LocalCache.notes.forEach { _, note ->
+                    val event = note.event
+                    if (event != null && event.pubKey == userPubkey) {
+                        // Check if this event references our ride request
+                        val tags = event.tags
+                        for (tag in tags) {
+                            if (tag.size > 1 && tag[0] == "e" && tag[1] == rideId) {
+                                eventsToDelete.add(event)
+                                break
+                            }
+                        }
+                    }
+                }
+
+                // Create deletion event if we have events to delete
+                if (eventsToDelete.isNotEmpty()) {
+                    Log.d("RideshareViewModel", "Found ${eventsToDelete.size} events to delete related to ride $rideId")
+
+                    account.signer?.sign(
+                        DeletionEvent.build(eventsToDelete),
+                    ) { deletionEvent ->
+                        Amethyst.instance.client.send(deletionEvent)
+                        LocalCache.justConsume(deletionEvent, null)
+                        Log.d("RideshareViewModel", "Ride cancellation and deletion events sent")
+                    }
+
+                    // Clear the current ride state
+                    _state.value = _state.value.copy(currentRide = null)
+                } else {
+                    Log.d("RideshareViewModel", "No events found to delete for this ride")
+                }
+            } catch (e: Exception) {
+                Log.e("RideshareViewModel", "Error cancelling ride", e)
+            }
+        }
     }
 
     // Storage permission handling
@@ -386,9 +635,17 @@ class RideshareViewModel(
         }
     }
 
+    // Update the existing cancel ride method to use our new deletion method
     fun cancelAllPendingRideRequests() {
         viewModelScope.launch {
-            _state.value = _state.value.copy(currentRide = null)
+            // Get the current ride request and cancel it
+            val currentRideRequest = getCurrentRideRequest()
+            if (currentRideRequest != null) {
+                cancelRide(currentRideRequest)
+            } else {
+                // Just update the state if there's no actual ride request
+                _state.value = _state.value.copy(currentRide = null)
+            }
         }
     }
 
@@ -493,18 +750,52 @@ class RideshareViewModel(
 
     // Download map data for the current location
     fun downloadMapData() {
-        val currentLocation = _state.value.currentLocation
-        if (currentLocation != null) {
-            viewModelScope.launch {
-                try {
+        viewModelScope.launch {
+            try {
+                // Use current location if available, or fallback to a default location
+                val location =
+                    _state.value.currentLocation ?: Location(
+                        latitude = 37.7749, // San Francisco as default
+                        longitude = -122.4194,
+                        approximateRadius = 500,
+                    )
+
+                Log.d("RideshareViewModel", "Attempting to download map data for location: ${location.latitude}, ${location.longitude}")
+
+                // Update state to show downloading
+                _state.value =
+                    _state.value.copy(
+                        isLoading = true,
+                        error = null,
+                    )
+
+                // Call the download function
+                val result =
                     graphHopperInitManager.downloadAndInitialize(
-                        centerLat = currentLocation.latitude,
-                        centerLon = currentLocation.longitude,
+                        centerLat = location.latitude,
+                        centerLon = location.longitude,
                         radiusKm = 50.0,
                     )
-                } catch (e: Exception) {
-                    Log.e("RideshareViewModel", "Error downloading map data", e)
+
+                if (result) {
+                    Log.d("RideshareViewModel", "Map data downloaded successfully")
+                } else {
+                    Log.e("RideshareViewModel", "Failed to download map data")
+                    _state.value =
+                        _state.value.copy(
+                            error = "Failed to download map data. Please try again.",
+                        )
                 }
+
+                // Update state to show download completed
+                _state.value = _state.value.copy(isLoading = false)
+            } catch (e: Exception) {
+                Log.e("RideshareViewModel", "Error downloading map data", e)
+                _state.value =
+                    _state.value.copy(
+                        isLoading = false,
+                        error = "Error: ${e.message ?: "Unknown error"}",
+                    )
             }
         }
     }

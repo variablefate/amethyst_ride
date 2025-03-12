@@ -35,10 +35,11 @@ enum class FeedType {
     GLOBAL,
     SEARCH,
     WALLET_CONNECT,
+    RIDESHARE,
 }
 
 val ALL_FEED_TYPES =
-    setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS, FeedType.GLOBAL, FeedType.SEARCH)
+    setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS, FeedType.GLOBAL, FeedType.SEARCH, FeedType.RIDESHARE)
 
 val COMMON_FEED_TYPES =
     setOf(FeedType.FOLLOWS, FeedType.PUBLIC_CHATS, FeedType.PRIVATE_DMS, FeedType.GLOBAL)

@@ -1074,7 +1074,7 @@
     <string name="http_status_403">Forbidden - The user doesn\'t have access rights to make the request</string>
     <string name="http_status_404">Not Found - The server can\'t find the requested address</string>
     <string name="http_status_405">Method Not Allowed - The server supports the request method, but not the target resource</string>
-    <string name="http_status_406">Not Acceptable - The server doesn\'t find any content that satisfies the request.</string>
+    <string name="http_status_406">Not Acceptable - The server doesn\'s find any content that satisfies the request.</string>
     <string name="http_status_407">Proxy Authentication Required - The user doesn\'t have valid authentication credentials</string>
     <string name="http_status_408">Request Timeout - The server timed out waiting for somebody else</string>
     <string name="http_status_409">Conflict - The server can\'t fulfill the request because there\'s a conflict with the resource</string>
@@ -1085,7 +1085,7 @@
     <string name="http_status_414">URI Too Long - The url requested by the client is too long for the server to process. </string>
     <string name="http_status_415">Unsupported Media Type - The request uses a media format the server does not support</string>
     <string name="http_status_416">Range Not Satisfiable - The server can\'t fulfill the value indicated in the request\'s Range header field. </string>
-    <string name="http_status_417">Expectation Failed - The server can\'t meet the requirements indicated by the Expect request header field</string>
+    <string name="http_status_417">Expectation Failed - The server can\'s meet the requirements indicated by the Expect request header field</string>
     <string name="http_status_426">Upgrade Required -  The server refuses to process the request using the current protocol unless the client upgrades to a different protocol.</string>
 
     <string name="http_status_500">Internal Server Error - The server has encountered an unexpected error and cannot complete the request</string>
@@ -1120,4 +1120,63 @@
     <string name="select_list_to_filter">Select a list to filter the feed</string>
 
     <string name="temporary_account">Log off on device lock</string>
+
+    <!-- Rideshare -->
+    <string name="available_now">Available Now</string>
+    <string name="looking_for_ride">Looking for Ride</string>
+    <string name="stop_looking">Stop Looking</string>
+    <string name="request_a_ride">Request a Ride</string>
+    <string name="pickup_location">Pickup Location</string>
+    <string name="destination">Destination</string>
+    <string name="preview_ride">Preview Ride</string>
+    <string name="request_ride">Request Ride</string>
+    <string name="cancel_ride">Cancel</string>
+    <string name="distance">Distance</string>
+    <string name="duration">Duration</string>
+    <string name="fare_estimate">Fare Estimate</string>
+    <string name="km">km</string>
+    <string name="min">min</string>
+    <string name="view_past_rides">View Past Rides</string>
+    <string name="past_ride_requests">Past Ride Requests</string>
+    <string name="no_past_rides">No Past Ride Requests</string>
+    <string name="no_past_rides_description">Your past ride requests will appear here</string>
+    <string name="delete">Delete</string>
+    <string name="deny">Deny</string>
+    <string name="accept">Accept</string>
+    <string name="ride_request">Ride Request</string>
+    <string name="refresh_ride_requests">Refresh ride requests</string>
+    <string name="you_are_available">You are available for ride requests</string>
+    <string name="you_are_unavailable">You are unavailable for ride requests</string>
+    <string name="last_updated">Last updated</string>
+    <string name="cancel_ride_button">Cancel Ride</string>
+    <string name="waiting_for_driver">Waiting for Driver</string>
+    <string name="searching_for_drivers">Searching for drivers in your area…</string>
+    <string name="driver_found">Driver Found!</string>
+    <string name="driver_on_the_way">Your driver is on the way to your pickup location</string>
+    <string name="cancel_current_ride">Cancel Ride</string>
+    <string name="current_ride">Current Ride</string>
+    <string name="status">Status</string>
+    <string name="complete_ride">Complete Ride</string>
+    <string name="pending">Pending</string>
+    <string name="accepted">Accepted</string>
+    <string name="completed">Completed</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="declined">Declined</string>
+    <string name="failed_to_find_ride">Failed to find a ride</string>
+    <string name="auto_cancellation_notice">Ride requests will be automatically cancelled after 20 minutes if no driver accepts</string>
+    <string name="no_active_requests">No active ride requests available. Requests older than 30 minutes are automatically hidden.</string>
+    <string name="current_location">Current Location</string>
+    <string name="use_current_location">Use Current Location</string>
+    <string name="change">Change</string>
+
+    <!-- Rideshare Strings -->
+    <string name="no_past_ride_requests">No past ride requests</string>
+    <string name="past_rides_empty_message">You have no past ride requests</string>
+    <string name="delete_ride_request">Delete Request</string>
+    <string name="cancel_ride_request">Cancel Request</string>
+    <string name="not_specified">Not specified</string>
+
+    <string name="enter_pickup_address">Enter pickup address</string>
+    <string name="enter_destination_address">Enter destination address</string>
+
 </resources>

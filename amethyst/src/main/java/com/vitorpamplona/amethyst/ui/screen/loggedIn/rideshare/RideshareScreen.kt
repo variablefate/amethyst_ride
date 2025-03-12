@@ -24,7 +24,7 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -37,12 +37,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Route
@@ -50,6 +52,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,7 +64,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -157,7 +159,7 @@ fun RideshareScreen(
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                imageVector = Icons.Filled.ArrowBack,
                                 contentDescription = stringResource(R.string.back),
                             )
                         }
@@ -176,7 +178,7 @@ fun RideshareScreen(
                                     )
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.Refresh,
+                                        imageVector = Icons.Filled.Refresh,
                                         contentDescription = stringResource(R.string.refresh),
                                     )
                                 }
@@ -342,7 +344,7 @@ fun RideshareScreen(
                                             ),
                                     ) {
                                         Icon(
-                                            imageVector = Icons.Default.Cancel,
+                                            imageVector = Icons.Filled.Cancel,
                                             contentDescription = null,
                                             modifier = Modifier.size(20.dp),
                                         )
@@ -365,7 +367,7 @@ fun RideshareScreen(
                     } else {
                         // Rider is not on a ride - show request form
                         RequestRideCard(
-                            rideshareViewModel = rideshareViewModel,
+                            accountViewModel = accountViewModel,
                             onRideRequest = { pickupAddress, destinationAddress, route ->
                                 // Send the ride request
                                 if (route != null) {
@@ -381,6 +383,8 @@ fun RideshareScreen(
                                     }
                                 }
                             },
+                            state = state,
+                            rideshareViewModel = rideshareViewModel,
                         )
 
                         // Add View Past Rides button
@@ -538,7 +542,7 @@ fun DriverModeSection(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Info,
+                        imageVector = Icons.Filled.Info,
                         contentDescription = "Location Permission",
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp),
@@ -664,9 +668,24 @@ fun RoutingStatusCard(
                                 .size(24.dp)
                                 .padding(end = 8.dp),
                         strokeWidth = 2.dp,
-                        progress = status.progress,
+                        progress = { status.progress },
+                    )
+                } else if (status.state == GraphHopperInitManager.InitState.ERROR) {
+                    Icon(
+                        imageVector = Icons.Filled.Error,
+                        contentDescription = "Error",
+                        modifier = Modifier.padding(end = 8.dp),
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                } else if (status.state == GraphHopperInitManager.InitState.INITIALIZED) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "Success",
+                        modifier = Modifier.padding(end = 8.dp),
+                        tint = MaterialTheme.colorScheme.primary,
                     )
                 }
+
                 Text(
                     text = statusText,
                     style = MaterialTheme.typography.bodyMedium,
@@ -681,6 +700,11 @@ fun RoutingStatusCard(
                     onClick = onDownloadClick,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp).padding(end = 4.dp),
+                    )
                     Text("Download Local Maps")
                 }
             }
@@ -691,7 +715,16 @@ fun RoutingStatusCard(
                 Button(
                     onClick = onDownloadClick,
                     modifier = Modifier.fillMaxWidth(),
+                    colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                        ),
                 ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp).padding(end = 4.dp),
+                    )
                     Text("Retry Download")
                 }
             }
@@ -798,7 +831,7 @@ fun DriverModeContent(
         }
     } else {
         // Driver is available or on a ride - display based on stage
-        when (currentRide.rideStage) {
+        when (currentRide.stage) {
             RideStage.DRIVER_AVAILABLE -> {
                 DriverAvailableCard(
                     onGoOffline = { rideshareViewModel.resetRideState() },
@@ -847,119 +880,6 @@ fun DriverModeContent(
     }
 }
 
-@Composable
-fun RiderModeContent(
-    state: RideshareState,
-    rideshareViewModel: RideshareViewModel,
-) {
-    val currentRide = state.currentRide
-    val scope = rememberCoroutineScope()
-
-    if (currentRide == null) {
-        // Rider is not on a ride - show request form
-        RequestRideCard(
-            rideshareViewModel = rideshareViewModel,
-            onRideRequest = { pickupAddress, destinationAddress, route ->
-                // Send the ride request
-                if (route != null) {
-                    scope.launch {
-                        rideshareViewModel.sendRideRequest(
-                            pickupAddress = pickupAddress, // This will be empty if using current location
-                            destinationAddress = destinationAddress,
-                            fareEstimateSats = route.fareEstimateSats ?: 2500L,
-                            routeDistance = route.distanceInKm,
-                            routeDuration = route.durationInMs,
-                            onSent = { /* Handle success if needed */ },
-                        )
-                    }
-                }
-            },
-        )
-
-        // Add View Past Rides button
-        Spacer(modifier = Modifier.height(16.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        ) {
-            Column(
-                modifier =
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                OutlinedButton(
-                    onClick = { rideshareViewModel.navigateToPastRides() },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(text = stringResource(R.string.view_past_rides))
-                }
-            }
-        }
-    } else {
-        // Rider is on a ride - display based on stage
-        when (currentRide.rideStage) {
-            RideStage.RIDER_SENT_OFFER -> {
-                WaitingForDriverCard(
-                    fareEstimate = currentRide.fareEstimate,
-                    onCancel = {
-                        rideshareViewModel.resetRideState()
-                    },
-                )
-            }
-            RideStage.DRIVER_ACCEPTED_OFFER -> {
-                DriverAcceptedCard(
-                    driver = currentRide.driver?.toBestDisplayName() ?: "Unknown Driver",
-                    fareEstimate = currentRide.fareEstimate,
-                    onConfirm = {
-                        // In a real implementation, we would confirm the ride
-                        // For now, this is a placeholder
-                    },
-                    onCancel = {
-                        rideshareViewModel.resetRideState()
-                    },
-                )
-            }
-            RideStage.DRIVER_ON_THE_WAY, RideStage.DRIVER_GETTING_CLOSE -> {
-                DriverEnRouteCard(
-                    status =
-                        if (currentRide.rideStage == RideStage.DRIVER_GETTING_CLOSE) {
-                            "Driver is getting close"
-                        } else {
-                            "Driver is on the way"
-                        },
-                    fareEstimate = currentRide.fareEstimate,
-                    onCancel = {
-                        rideshareViewModel.resetRideState()
-                    },
-                )
-            }
-            RideStage.RIDE_COMPLETED -> {
-                PaymentRequestCard(
-                    finalFare = currentRide.finalFare,
-                    invoice = currentRide.lightningInvoice,
-                    onPay = {
-                        currentRide.lightningInvoice?.let {
-                            rideshareViewModel.sendPayment(it)
-                        }
-                    },
-                )
-            }
-            RideStage.PAYMENT_COMPLETE -> {
-                PaymentCompleteCard {
-                    rideshareViewModel.resetRideState()
-                }
-            }
-            else -> {
-                // Handle other states if needed
-            }
-        }
-    }
-}
-
-// Driver Cards
 @Composable
 fun DriverAvailableCard(
     onGoOffline: () -> Unit,
@@ -1013,111 +933,133 @@ fun DriverAvailableCard(
 
 @Composable
 fun RequestRideCard(
-    rideshareViewModel: RideshareViewModel,
-    modifier: Modifier = Modifier,
+    accountViewModel: AccountViewModel,
     onRideRequest: (String, String, Route?) -> Unit,
+    state: RideshareState,
+    rideshareViewModel: RideshareViewModel,
 ) {
     var pickupText by remember { mutableStateOf("") }
     var destinationText by remember { mutableStateOf("") }
-    var showPreview by remember { mutableStateOf(false) }
-    var route by remember { mutableStateOf<Route?>(null) }
-    var isLoading by remember { mutableStateOf(false) }
     var useCurrentLocation by remember { mutableStateOf(true) }
+    var showPreview by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
+    // Handle state error
+    LaunchedEffect(state.error) {
+        error = state.error
+    }
+
+    // Handle state loading
+    LaunchedEffect(state.isLoading) {
+        isLoading = state.isLoading
+    }
+
+    // Remember scope
     val scope = rememberCoroutineScope()
 
+    // Route data
+    var route by remember { mutableStateOf<Route?>(null) }
+
     Card(
-        modifier = modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier =
+                Modifier
+                    .padding(16.dp)
+                    .fillMaxWidth(),
         ) {
             Text(
                 text = stringResource(R.string.request_a_ride),
-                style = MaterialTheme.typography.headlineSmall,
+                style = MaterialTheme.typography.titleLarge,
             )
 
-            // Pickup location - either shows current location or text field
-            if (useCurrentLocation) {
-                // Current location display
-                Box(
-                    modifier =
-                        Modifier
-                            .fillMaxWidth()
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = MaterialTheme.shapes.small,
-                            ).padding(16.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MyLocation,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = stringResource(R.string.current_location),
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        Spacer(modifier = Modifier.weight(1f))
-                        TextButton(onClick = { useCurrentLocation = false }) {
-                            Text(stringResource(R.string.change))
-                        }
-                    }
-                }
-            } else {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Current location toggle
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(
+                    checked = useCurrentLocation,
+                    onCheckedChange = { useCurrentLocation = it },
+                )
+                Text(
+                    text = stringResource(R.string.use_current_location),
+                    modifier = Modifier.clickable { useCurrentLocation = !useCurrentLocation },
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Pickup location - show only if not using current location
+            if (!useCurrentLocation) {
+                Text(
+                    text = stringResource(R.string.pickup_location),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
                 OutlinedTextField(
                     value = pickupText,
                     onValueChange = { pickupText = it },
-                    label = { Text(stringResource(R.string.pickup_location)) },
                     modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.enter_pickup_address)) },
                     leadingIcon = {
                         Icon(
                             imageVector = Icons.Filled.LocationOn,
                             contentDescription = null,
                         )
                     },
-                    trailingIcon = {
-                        IconButton(onClick = { useCurrentLocation = true }) {
-                            Icon(
-                                imageVector = Icons.Filled.MyLocation,
-                                contentDescription = stringResource(R.string.use_current_location),
-                            )
-                        }
-                    },
-                    singleLine = true,
+                    enabled = !isLoading,
                 )
+
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // Destination location
+            // Destination
+            Text(
+                text = stringResource(R.string.destination),
+                style = MaterialTheme.typography.bodyMedium,
+            )
             OutlinedTextField(
                 value = destinationText,
                 onValueChange = { destinationText = it },
-                label = { Text(stringResource(R.string.destination)) },
                 modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text(stringResource(R.string.enter_destination_address)) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Filled.LocationOn,
                         contentDescription = null,
                     )
                 },
-                singleLine = true,
+                enabled = !isLoading,
             )
 
-            // Preview button
+            // Show any errors
+            if (error != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = error!!,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Preview ride button
             Button(
                 onClick = {
                     if (destinationText.isNotBlank()) {
                         isLoading = true
                         showPreview = true
+                        error = null
+
                         scope.launch {
                             rideshareViewModel.previewRoute(
                                 if (useCurrentLocation) null else pickupText,
@@ -1125,6 +1067,11 @@ fun RequestRideCard(
                             ) { calculatedRoute ->
                                 route = calculatedRoute
                                 isLoading = false
+
+                                // If route failed, show error
+                                if (calculatedRoute == null) {
+                                    error = "Could not calculate route. Please try different addresses."
+                                }
                             }
                         }
                     }
@@ -1206,14 +1153,27 @@ fun RequestRideCard(
                         Button(
                             onClick = {
                                 onRideRequest(
-                                    pickupText,
+                                    if (useCurrentLocation) {
+                                        state.currentLocation?.let { "${it.latitude},${it.longitude}" } ?: ""
+                                    } else {
+                                        pickupText
+                                    },
                                     destinationText,
                                     route,
                                 )
                             },
                             modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading,
                         ) {
-                            Text(stringResource(R.string.request_ride))
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    strokeWidth = 2.dp,
+                                )
+                            } else {
+                                Text(stringResource(R.string.request_ride))
+                            }
                         }
                     }
                 }
@@ -1413,192 +1373,128 @@ fun WaitingForDriverCard(
 }
 
 @Composable
-fun DriverAcceptedCard(
+fun DriverFoundCard(
     driver: String,
-    fareEstimate: String?,
-    onConfirm: () -> Unit,
-    onCancel: () -> Unit,
+    onCancelRide: () -> Unit,
 ) {
     Card(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier =
+                Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Driver Accepted",
-                fontWeight = FontWeight.Bold,
+                text = stringResource(R.string.driver_found),
                 style = MaterialTheme.typography.headlineSmall,
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("Driver: $driver has accepted your ride request!")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = onConfirm,
-                modifier = Modifier.fillMaxWidth(),
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text("Confirm Ride")
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Cancel Ride")
-            }
-        }
-    }
-}
-
-@Composable
-fun DriverEnRouteCard(
-    status: String,
-    fareEstimate: String?,
-    onCancel: () -> Unit,
-) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-        ) {
-            Text(
-                text = "Driver En Route",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.headlineSmall,
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(status)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            fareEstimate?.let {
-                Text("Fare Estimate: ${SatoshiFormatter.format(it.toLong())}")
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            OutlinedButton(
-                onClick = onCancel,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Cancel Ride")
-            }
-        }
-    }
-}
-
-@Composable
-fun PaymentRequestCard(
-    finalFare: String?,
-    invoice: String?,
-    onPay: () -> Unit,
-) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-        ) {
-            Text(
-                text = "Ride Completed",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.headlineSmall,
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("Your ride has been completed. Please make payment.")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            finalFare?.let {
-                Text("Final Fare: ${SatoshiFormatter.format(it.toLong())}")
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            invoice?.let {
-                // In a real app, you might use a QR code here
-                // or connect to a lightning wallet
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = null,
+                    modifier = Modifier.size(24.dp),
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    "Invoice: ${it.take(20)}...",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = driver,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Text(
+                text = stringResource(R.string.driver_on_the_way),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
             Button(
-                onClick = onPay,
-                modifier = Modifier.fillMaxWidth(),
+                onClick = onCancelRide,
+                modifier = Modifier.align(Alignment.End),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                    ),
             ) {
-                Text("Pay Now")
+                Text(text = stringResource(R.string.cancel_current_ride))
             }
         }
     }
 }
 
 @Composable
-fun PaymentCompleteCard(onFinish: () -> Unit) {
-    Card(
+fun getRideStatusText(status: RideRequestStatus): String =
+    when (status) {
+        RideRequestStatus.PENDING -> stringResource(R.string.pending)
+        RideRequestStatus.ACCEPTED -> stringResource(R.string.accepted)
+        RideRequestStatus.COMPLETED -> stringResource(R.string.completed)
+        RideRequestStatus.CANCELLED -> stringResource(R.string.cancelled)
+        RideRequestStatus.DECLINED -> stringResource(R.string.declined)
+    }
+
+@Composable
+fun getRideStatusColor(status: RideRequestStatus): Color =
+    when (status) {
+        RideRequestStatus.PENDING -> MaterialTheme.colorScheme.primary
+        RideRequestStatus.ACCEPTED -> Color(0xFF2E7D32) // Green
+        RideRequestStatus.COMPLETED -> Color(0xFF2E7D32) // Green
+        RideRequestStatus.CANCELLED -> Color(0xFFD32F2F) // Red
+        RideRequestStatus.DECLINED -> Color(0xFFD32F2F) // Red
+    }
+
+// Fix the AddressRow composable
+@Composable
+fun AddressRow(
+    label: String,
+    address: String?,
+    modifier: Modifier = Modifier,
+) {
+    Row(
         modifier =
-            Modifier
+            modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-            ),
+                .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        Icon(
+            imageVector = Icons.Filled.LocationOn,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(end = 8.dp),
+        )
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "Payment Complete",
-                fontWeight = FontWeight.Bold,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-                "Thank you for using Amethyst Ride! Your payment has been processed.",
-                color = MaterialTheme.colorScheme.onPrimaryContainer,
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = onFinish,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text("Done")
+            if (!address.isNullOrEmpty()) {
+                Text(
+                    text = address,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.not_specified),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }
@@ -1706,134 +1602,6 @@ fun RideRequestCard(
                 ) {
                     Text(text = stringResource(R.string.accept))
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun DriverFoundCard(
-    driver: String,
-    onCancelRide: () -> Unit,
-) {
-    Card(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    ) {
-        Column(
-            modifier =
-                Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            Text(
-                text = stringResource(R.string.driver_found),
-                style = MaterialTheme.typography.headlineSmall,
-            )
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(24.dp),
-                    tint = MaterialTheme.colorScheme.primary,
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = driver,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-
-            Text(
-                text = stringResource(R.string.driver_on_the_way),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Button(
-                onClick = onCancelRide,
-                modifier = Modifier.align(Alignment.End),
-                colors =
-                    ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                    ),
-            ) {
-                Text(text = stringResource(R.string.cancel_current_ride))
-            }
-        }
-    }
-}
-
-@Composable
-fun getRideStatusText(status: RideRequestStatus): String =
-    when (status) {
-        RideRequestStatus.PENDING -> stringResource(R.string.pending)
-        RideRequestStatus.ACCEPTED -> stringResource(R.string.accepted)
-        RideRequestStatus.COMPLETED -> stringResource(R.string.completed)
-        RideRequestStatus.CANCELLED -> stringResource(R.string.cancelled)
-        RideRequestStatus.DECLINED -> stringResource(R.string.declined)
-    }
-
-@Composable
-fun getRideStatusColor(status: RideRequestStatus): Color =
-    when (status) {
-        RideRequestStatus.PENDING -> MaterialTheme.colorScheme.primary
-        RideRequestStatus.ACCEPTED -> Color(0xFF2E7D32) // Green
-        RideRequestStatus.COMPLETED -> Color(0xFF2E7D32) // Green
-        RideRequestStatus.CANCELLED -> Color(0xFFD32F2F) // Red
-        RideRequestStatus.DECLINED -> Color(0xFFD32F2F) // Red
-    }
-
-// Fix the AddressRow composable
-@Composable
-fun AddressRow(
-    label: String,
-    address: String?,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier =
-            modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Default.LocationOn,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(end = 8.dp),
-        )
-
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            if (!address.isNullOrEmpty()) {
-                Text(
-                    text = address,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-            } else {
-                Text(
-                    text = stringResource(R.string.not_specified),
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error,
-                )
             }
         }
     }

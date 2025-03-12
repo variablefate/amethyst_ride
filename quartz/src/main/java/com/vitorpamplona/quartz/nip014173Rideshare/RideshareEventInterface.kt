@@ -34,5 +34,8 @@ interface RideshareEventInterface : IEvent {
         const val RIDE_ACCEPTANCE = 3002
         const val RIDE_CONFIRMATION = 3003
         const val DRIVER_STATUS = 3004
+
+        // Standard hashtag for rideshare events
+        const val RIDESHARE_HASHTAG = "rideshare"
     }
 } 

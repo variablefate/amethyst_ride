@@ -22,6 +22,7 @@ package com.vitorpamplona.amethyst.ui.screen.loggedIn.rideshare
 
 import android.content.Context
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -336,22 +337,25 @@ class RideshareViewModel(
 
     // Toggle driver mode
     fun toggleDriverMode(isDriverMode: Boolean) {
-        Log.d("RideshareViewModel", "Toggling driver mode to: $isDriverMode")
+        Log.d("RideshareViewModel", "toggleDriverMode called with: isDriverMode=$isDriverMode")
 
         viewModelScope.launch {
             try {
                 // Update state to reflect the new mode
+                Log.d("RideshareViewModel", "Setting state.isDriverMode=$isDriverMode")
                 _state.value =
                     _state.value.copy(
                         isDriverMode = isDriverMode,
                         // When switching to rider mode, ensure driver is unavailable
                         isDriverAvailable = if (!isDriverMode) false else _state.value.isDriverAvailable,
                     )
+                Log.d("RideshareViewModel", "State updated: isDriverMode=${_state.value.isDriverMode}, isDriverAvailable=${_state.value.isDriverAvailable}")
 
                 // If changing to driver mode, check if we have the current location
                 if (isDriverMode) {
                     // Check if we have location access
                     val locationAvailable = Amethyst.instance.locationManager.geohashStateFlow.value
+                    Log.d("RideshareViewModel", "Location check: locationAvailable=$locationAvailable")
 
                     if (locationAvailable !is LocationState.LocationResult.Success) {
                         Log.d("RideshareViewModel", "No location available for driver mode")
@@ -365,10 +369,12 @@ class RideshareViewModel(
                             )
 
                         // Update the current location for driver mode
+                        Log.d("RideshareViewModel", "Setting default location: $defaultLocation")
                         _state.value =
                             _state.value.copy(
                                 currentLocation = defaultLocation,
                             )
+                        Log.d("RideshareViewModel", "Default location set")
                     }
                 }
 
@@ -381,6 +387,7 @@ class RideshareViewModel(
 
     // Set driver mode - alias for toggleDriverMode for backwards compatibility
     fun setDriverMode(isDriverMode: Boolean) {
+        Log.d("RideshareViewModel", "setDriverMode called with: isDriverMode=$isDriverMode")
         toggleDriverMode(isDriverMode)
     }
 
@@ -388,7 +395,41 @@ class RideshareViewModel(
     fun broadcastDriverAvailability(isAvailable: Boolean) {
         viewModelScope.launch {
             try {
-                Log.d("RideshareViewModel", "Setting driver availability to: $isAvailable")
+                Log.d("RideshareViewModel", "Starting driver availability broadcast process: isAvailable=$isAvailable")
+
+                // First, check if account is writeable
+                val isWriteable = account.isWriteable()
+                Log.d("RideshareViewModel", "Account writeable check: $isWriteable")
+
+                if (!isWriteable) {
+                    Log.e("RideshareViewModel", "Account is not writeable. Cannot broadcast driver availability.")
+                    Toast
+                        .makeText(
+                            context,
+                            "Cannot toggle driver mode: Account is read-only",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    // Don't update state, so the toggle stays off
+                    return@launch
+                }
+
+                // Check if we have any active relays with write permission
+                val writeRelays = account.activeWriteRelays()
+                Log.d("RideshareViewModel", "Active write relays count: ${writeRelays.size}")
+
+                if (writeRelays.isEmpty()) {
+                    Log.e("RideshareViewModel", "No active relays with write permission. Cannot broadcast driver availability.")
+                    Toast
+                        .makeText(
+                            context,
+                            "Cannot broadcast driver availability: No relays with write permission",
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    return@launch
+                }
+
+                // Use all write relays - we'll let the relay pool handle connection status
+                val connectedWriteRelays = writeRelays
 
                 // Use current location or default if not available
                 val currentLocation =
@@ -398,56 +439,171 @@ class RideshareViewModel(
                         approximateRadius = 500,
                     )
 
-                // Update state to indicate driver is available/unavailable
-                _state.value =
-                    _state.value.copy(
-                        isDriverAvailable = isAvailable,
-                        driverLocation = if (isAvailable) currentLocation else null,
-                        // Set ride stage for driver
-                        currentRide =
-                            if (isAvailable) {
-                                RideState(rideStage = RideStage.DRIVER_AVAILABLE)
-                            } else {
-                                null
-                            },
-                    )
+                Log.d("RideshareViewModel", "Using location: lat=${currentLocation.latitude}, lon=${currentLocation.longitude}")
 
-                Log.d("RideshareViewModel", "Driver availability set to: $isAvailable")
-
-                // Implement the actual event broadcasting
                 if (isAvailable) {
                     // Create and broadcast a DriverAvailabilityEvent (Kind 3000)
                     val signer = account.signer
                     if (signer != null) {
-                        Log.d("RideshareViewModel", "Broadcasting driver availability with location: ${currentLocation.latitude}, ${currentLocation.longitude}")
+                        Log.d("RideshareViewModel", "Signer is available: ${signer.javaClass.simpleName}")
 
-                        // Create the event using the DriverAvailabilityEvent class
-                        // This will publish a Kind 3000 event as specified in NIP-014173
-                        DriverAvailabilityEvent.create(
-                            approxLocation = currentLocation,
-                            signer = signer,
-                            createdAt = TimeUtils.now(),
-                            onReady = { event ->
-                                Log.d("RideshareViewModel", "Driver availability event created, broadcasting to relays")
-                                Amethyst.instance.client.send(event)
-                                LocalCache.justConsume(event, null)
+                        try {
+                            Log.d("RideshareViewModel", "Broadcasting driver availability with location: ${currentLocation.latitude}, ${currentLocation.longitude}")
 
-                                // Set last refresh time
-                                _state.value =
-                                    _state.value.copy(
-                                        lastRefreshTime = Date(),
-                                    )
-                            },
-                        )
+                            // Update state before sending the event to show UI response immediately
+                            Log.d("RideshareViewModel", "Updating state to show driver available")
+                            _state.value =
+                                _state.value.copy(
+                                    isDriverAvailable = true,
+                                    driverLocation = currentLocation,
+                                    currentRide = RideState(rideStage = RideStage.DRIVER_AVAILABLE),
+                                )
+
+                            // Create the event using the DriverAvailabilityEvent class
+                            // This will publish a Kind 3000 event as specified in NIP-014173
+                            Log.d("RideshareViewModel", "Creating DriverAvailabilityEvent")
+
+                            DriverAvailabilityEvent.create(
+                                approxLocation = currentLocation,
+                                signer = signer,
+                                createdAt = TimeUtils.now(),
+                                onReady = { event ->
+                                    try {
+                                        Log.d("RideshareViewModel", "Driver availability event created successfully: id=${event.id}, kind=${event.kind}")
+                                        Log.d("RideshareViewModel", "Event content: ${event.content}")
+                                        Log.d("RideshareViewModel", "Tags: ${event.tags.joinToString()}")
+                                        Log.d("RideshareViewModel", "Broadcasting to relays via Amethyst client")
+
+                                        // Show toast to indicate we're sending the event
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "Broadcasting driver availability to ${connectedWriteRelays.size} relays...",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+
+                                        // Directly send to connected active write relays to ensure it goes through
+                                        Amethyst.instance.client.send(event, connectedWriteRelays)
+                                        Log.d("RideshareViewModel", "Event sent to client successfully")
+
+                                        LocalCache.justConsume(event, null)
+                                        Log.d("RideshareViewModel", "Event consumed by LocalCache")
+
+                                        // Set last refresh time
+                                        _state.value =
+                                            _state.value.copy(
+                                                lastRefreshTime = Date(),
+                                            )
+                                        Log.d("RideshareViewModel", "Driver availability event successfully sent to relays")
+
+                                        // Show success message
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "Driver mode activated successfully",
+                                                Toast.LENGTH_SHORT,
+                                            ).show()
+                                    } catch (e: Exception) {
+                                        Log.e("RideshareViewModel", "Error sending driver availability event to relays", e)
+                                        // If we fail to send, revert the state
+                                        _state.value =
+                                            _state.value.copy(
+                                                isDriverAvailable = false,
+                                                driverLocation = null,
+                                                currentRide = null,
+                                            )
+                                        Log.d("RideshareViewModel", "State reverted after send failure")
+
+                                        // Show error message
+                                        Toast
+                                            .makeText(
+                                                context,
+                                                "Failed to broadcast availability: ${e.message}",
+                                                Toast.LENGTH_LONG,
+                                            ).show()
+                                    }
+                                },
+                            )
+
+                            Log.d("RideshareViewModel", "DriverAvailabilityEvent.create called, waiting for callback")
+                        } catch (e: Exception) {
+                            Log.e("RideshareViewModel", "Error creating driver availability event", e)
+                            // If we fail to create the event, revert the state
+                            _state.value =
+                                _state.value.copy(
+                                    isDriverAvailable = false,
+                                    driverLocation = null,
+                                    currentRide = null,
+                                )
+                            Log.d("RideshareViewModel", "State reverted after creation failure")
+
+                            // Show error message
+                            Toast
+                                .makeText(
+                                    context,
+                                    "Failed to create driver availability event: ${e.message}",
+                                    Toast.LENGTH_LONG,
+                                ).show()
+                        }
                     } else {
                         Log.e("RideshareViewModel", "Failed to broadcast driver availability: No signer available")
+                        // If no signer is available, keep the toggle off
+                        _state.value =
+                            _state.value.copy(
+                                isDriverAvailable = false,
+                                driverLocation = null,
+                                currentRide = null,
+                            )
+                        Log.d("RideshareViewModel", "State reset due to missing signer")
+
+                        // Show error message
+                        Toast
+                            .makeText(
+                                context,
+                                "Failed to broadcast availability: No signer available",
+                                Toast.LENGTH_LONG,
+                            ).show()
                     }
                 } else {
+                    // Update state to indicate driver is unavailable
+                    Log.d("RideshareViewModel", "Setting driver to unavailable")
+                    _state.value =
+                        _state.value.copy(
+                            isDriverAvailable = false,
+                            driverLocation = null,
+                            currentRide = null,
+                        )
+
                     // If driver is going offline, delete the last driver availability event
+                    Log.d("RideshareViewModel", "Deleting previous driver availability events")
                     deleteDriverAvailabilityEvent()
+
+                    // Show success message
+                    Toast
+                        .makeText(
+                            context,
+                            "Driver mode deactivated",
+                            Toast.LENGTH_SHORT,
+                        ).show()
                 }
             } catch (e: Exception) {
                 Log.e("RideshareViewModel", "Error updating driver availability", e)
+                // If any exception occurs, make sure the toggle is off
+                _state.value =
+                    _state.value.copy(
+                        isDriverAvailable = false,
+                        driverLocation = null,
+                        currentRide = null,
+                    )
+                Log.d("RideshareViewModel", "State reset due to exception")
+
+                // Show error message
+                Toast
+                    .makeText(
+                        context,
+                        "Error updating driver availability: ${e.message}",
+                        Toast.LENGTH_LONG,
+                    ).show()
             }
         }
     }

@@ -20,18 +20,24 @@
  */
 package com.vitorpamplona.quartz.nip014173Rideshare
 
+import android.util.Log
 import androidx.compose.runtime.Immutable
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.vitorpamplona.quartz.nip01Core.core.Event
 import com.vitorpamplona.quartz.nip01Core.core.HexKey
 import com.vitorpamplona.quartz.nip01Core.jackson.JacksonHelper
 import com.vitorpamplona.quartz.nip01Core.signers.NostrSigner
-import com.vitorpamplona.quartz.nip31Alts.AltTag
 import com.vitorpamplona.quartz.utils.TimeUtils
 
 /**
  * Kind 3000: Driver Availability Event
  * Description: Driver broadcasts availability to potential riders.
+ *
+ * Standard Nostr event with kind = 3000
+ * Content: JSON object with approx_location (latitude, longitude)
+ * Tags:
+ * - ["t", "rideshare"] for topic/hashtag
+ * - ["p", "<driver-pubkey>"] automatically added by signing process
  */
 @Immutable
 class DriverAvailabilityEvent(
@@ -45,17 +51,16 @@ class DriverAvailabilityEvent(
     RideshareEventInterface {
     data class Content(
         val approx_location: Location,
-    )
-
-    data class Location(
-        val lat: Double,
-        val lon: Double,
+        // Added for debugging purposes
+        val app: String = "amethyst",
+        val version: String = "1.0.0",
     )
 
     fun getContent(): Content? =
         try {
             JacksonHelper.mapper.readValue(content, Content::class.java)
         } catch (e: Exception) {
+            Log.e("DriverAvailabilityEvent", "Failed to parse content: $content", e)
             null
         }
 
@@ -64,6 +69,7 @@ class DriverAvailabilityEvent(
     companion object {
         const val KIND = RideshareEventInterface.DRIVER_AVAILABILITY
         const val ALT = "Driver availability"
+        private const val RIDESHARE_HASHTAG = "rideshare"
 
         /**
          * Creates a new driver availability event.
@@ -79,15 +85,40 @@ class DriverAvailabilityEvent(
             createdAt: Long = TimeUtils.now(),
             onReady: (DriverAvailabilityEvent) -> Unit,
         ) {
+            // Create standard Nostr tags following NIP-01 format
             val tags =
                 arrayOf(
-                    AltTag.assemble(ALT),
-                    // P tag with driver's pubkey will be added when the event is signed
+                    // Add a standard hashtag tag
+                    arrayOf("t", RIDESHARE_HASHTAG),
+                    // P tag with driver's pubkey will be added automatically when the event is signed
                 )
 
-            val content: String = JacksonHelper.mapper.writeValueAsString(Content(approxLocation))
+            // Create the content following standard format
+            val content =
+                try {
+                    JacksonHelper.mapper.writeValueAsString(
+                        Content(
+                            approx_location = approxLocation,
+                        ),
+                    )
+                } catch (e: Exception) {
+                    Log.e("DriverAvailabilityEvent", "Error serializing content", e)
+                    // Provide a simpler fallback format if serialization fails
+                    val fallbackContent = """{"approx_location":{"lat":${approxLocation.latitude},"lon":${approxLocation.longitude}}}"""
+                    fallbackContent
+                }
 
+            // Log the event we're about to create for debugging
+            Log.d("DriverAvailabilityEvent", "Creating event with content: $content")
+            Log.d("DriverAvailabilityEvent", "Tags: ${tags.map { it.joinToString() }}")
+
+            // Sign and create the event
             signer.sign<DriverAvailabilityEvent>(createdAt, KIND, tags, content) { signedEvent ->
+                // Log the created event for debugging
+                Log.d("DriverAvailabilityEvent", "Created event with ID: ${signedEvent.id}")
+                Log.d("DriverAvailabilityEvent", "Final content: ${signedEvent.content}")
+                Log.d("DriverAvailabilityEvent", "Final tags: ${signedEvent.tags.map { it.joinToString() }}")
+
                 onReady(signedEvent)
             }
         }
